@@ -8,3 +8,11 @@ updates:
     directory: /docs-site
     schedule:
       interval: weekly
+  - package-ecosystem: npm
+    directory: /screenshots
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
