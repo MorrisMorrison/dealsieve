@@ -207,7 +207,7 @@ startup errors.
 
 | Method + path | Purpose |
 |---|---|
-| `GET /api/deals?view=passed\|watchlist\|blocked` | Deals seen in the last 3 days, with verdict, reasons, current temperature and the temperature history (for the sparkline). At most 200, sorted by score. |
+| `GET /api/deals?view=passed\|watchlist\|blocked` | Deals seen in the last 3 days, with verdict, reasons, current temperature and the temperature history (for the sparkline). At most 200, sorted by score. Also returns `counts` (`passed`, `watchlist`, `blocked`) for the same window, for the tab badges. |
 | `POST /api/actions` | Body `{kind, deal_id}`; adds an action and recomputes verdicts. |
 | `DELETE /api/actions/{id}` | Undoes an action and recomputes verdicts. |
 | `GET /api/rules` | Active YAML rules (read-only) and the list of actions. |
@@ -276,6 +276,8 @@ behind a reverse proxy or auth layer if it isn't only on a private network.
   junk: its fingerprint, mute: its category or merchant), so clients can't inject arbitrary values.
 - The API rejects cross-origin state-changing requests (stdlib cross-origin protection) and sends
   `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer` on every response.
+- Pass verdicts now record why they passed (temperature against the minimum, recurrence), after the
+  watchlist reason; block reasons are unchanged.
 
 ## Later
 

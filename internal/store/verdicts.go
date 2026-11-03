@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -98,6 +99,31 @@ func (s *Store) GetVerdict(ctx context.Context, dealID string) (Verdict, error) 
 	}
 	v.DecidedAt = fromUnix(decided)
 	return v, json.Unmarshal([]byte(reasons), &v.Reasons)
+}
+
+// CountViews returns how many deals each view holds, with the same filters as
+// ListDeals but no limit.
+func (s *Store) CountViews(ctx context.Context, since time.Time) (map[string]int, error) {
+	views := []string{ViewPassed, ViewWatchlist, ViewBlocked}
+	cols := make([]string, len(views))
+	for i, v := range views {
+		cols[i] = `COALESCE(SUM(CASE WHEN ` + viewFilters[v] + ` THEN 1 ELSE 0 END), 0)`
+	}
+	counts := make([]int, len(views))
+	dest := make([]any, len(views))
+	for i := range counts {
+		dest[i] = &counts[i]
+	}
+	err := s.db.QueryRowContext(ctx, `SELECT `+strings.Join(cols, ", ")+`
+		FROM deals d JOIN verdicts v ON v.deal_id = d.id WHERE d.last_seen >= ?`, since.Unix()).Scan(dest...)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]int, len(views))
+	for i, v := range views {
+		out[v] = counts[i]
+	}
+	return out, nil
 }
 
 // ListDeals returns a view's deals last seen since since, best score first.

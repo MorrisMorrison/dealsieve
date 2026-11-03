@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -96,6 +97,7 @@ type dealsResponse struct {
 		Reasons      []string `json:"reasons"`
 		InTrending   bool     `json:"in_trending"`
 	} `json:"deals"`
+	Counts map[string]int `json:"counts"`
 }
 
 func TestListDeals(t *testing.T) {
@@ -117,8 +119,18 @@ func TestListDeals(t *testing.T) {
 		t.Errorf("deal = %+v", d)
 	}
 
+	// Counts cover every tab over the same window, whichever view is listed.
+	wantCounts := map[string]int{"passed": 1, "watchlist": 0, "blocked": 1}
+	if !maps.Equal(got.Counts, wantCounts) {
+		t.Errorf("counts = %v, want %v", got.Counts, wantCounts)
+	}
+
 	_, body = h.do(t, "GET", "/api/deals?view=blocked", "")
+	got = dealsResponse{}
 	json.Unmarshal(body, &got)
+	if !maps.Equal(got.Counts, wantCounts) {
+		t.Errorf("blocked view counts = %v, want %v", got.Counts, wantCounts)
+	}
 	if len(got.Deals) != 1 || got.Deals[0].Reasons[0] != "too cold: 80° < 100°" {
 		t.Errorf("blocked = %+v", got.Deals)
 	}
