@@ -1,0 +1,11 @@
+/* dealsieve's green (web/static/css) in place of Starlight's default accent. */
+:root {
+	--sl-color-accent-low: #163524;
+	--sl-color-accent: #3f9a6b;
+	--sl-color-accent-high: #b6e6cd;
+}
+:root[data-theme='light'] {
+	--sl-color-accent-low: #dff1e7;
+	--sl-color-accent: #2c6e4c;
+	--sl-color-accent-high: #1b4430;
+}

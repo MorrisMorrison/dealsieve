@@ -1,5 +1,9 @@
 # dealsieve
 
+[![Docs](https://github.com/MorrisMorrison/dealsieve/actions/workflows/docs.yml/badge.svg)](https://morrismorrison.github.io/dealsieve/)
+
+Documentation: <https://morrismorrison.github.io/dealsieve/>
+
 A small, self-hosted filter for deal feeds. dealsieve reads a deal community's feeds, throws away
 the noise, and shows what's left on a simple web page, with optional push notifications.
 
