@@ -9,4 +9,11 @@ export function sparkPoints(values, width = 100, height = 24) {
     .join(' ');
 }
 
+// Points for a filled <polygon> under the same line, closed along the bottom edge.
+export function areaPoints(values, width = 100, height = 24) {
+  const line = sparkPoints(values, width, height);
+  if (!line) return '';
+  return `0,${height} ${line} ${width},${height}`;
+}
+
 const round = (n) => Math.round(n * 10) / 10;

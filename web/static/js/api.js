@@ -12,7 +12,8 @@ async function request(method, path, body) {
   return res.status === 204 ? null : res.json();
 }
 
-export const getDeals = (view) => request('GET', `/api/deals?view=${encodeURIComponent(view)}`).then((r) => r.deals);
+// Resolves to { deals, counts } where counts has passed/watchlist/blocked.
+export const getDeals = (view) => request('GET', `/api/deals?view=${encodeURIComponent(view)}`);
 export const addAction = (kind, dealId) => request('POST', '/api/actions', { kind, deal_id: dealId });
 export const deleteAction = (id) => request('DELETE', `/api/actions/${encodeURIComponent(id)}`);
 export const getRules = () => request('GET', '/api/rules');
