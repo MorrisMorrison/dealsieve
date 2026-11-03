@@ -1,0 +1,12 @@
+{
+  "name": "dealsieve-screenshots",
+  "private": true,
+  "description": "README screenshot capture; used only by CI and `npm run capture`.",
+  "type": "module",
+  "scripts": {
+    "capture": "node capture.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}

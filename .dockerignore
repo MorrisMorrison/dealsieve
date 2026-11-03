@@ -6,3 +6,5 @@ docs
 .superpowers
 *.exe
 /dealsieve
+docs-site
+screenshots

@@ -3,3 +3,5 @@
 /dealsieve
 /dealsieve.exe
 /coverage-*.out
+/docs/screenshots/
+node_modules/

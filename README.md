@@ -1,6 +1,8 @@
 # dealsieve
 
-[![codecov](https://codecov.io/gh/MorrisMorrison/dealsieve/graph/badge.svg)](https://codecov.io/gh/MorrisMorrison/dealsieve)
+[![codecov](https://codecov.io/gh/MorrisMorrison/dealsieve/graph/badge.svg)](https://codecov.io/gh/MorrisMorrison/dealsieve) [![Docs](https://github.com/MorrisMorrison/dealsieve/actions/workflows/docs.yml/badge.svg)](https://morrismorrison.github.io/dealsieve/)
+
+Documentation: <https://morrismorrison.github.io/dealsieve/>
 
 A small, self-hosted filter for deal feeds. dealsieve reads a deal community's feeds, throws away
 the noise, and shows what's left on a simple web page, with optional push notifications.
@@ -8,6 +10,23 @@ the noise, and shows what's left on a simple web page, with optional push notifi
 Its first (and so far only) source is [mydealz](https://www.mydealz.de). dealsieve is not affiliated
 with it; it reads the public RSS feeds, links every deal back to the original post, and is meant for
 personal use. Please respect the site's terms and keep polling intervals reasonable.
+
+## Screenshots
+
+<!-- Generated from made-up demo data by the "README screenshots" workflow
+     (.github/workflows/screenshots.yml, capture script in screenshots/) and published
+     to the `screenshots` branch on every relevant push to main. Do not edit by hand. -->
+
+<table align="center">
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/MorrisMorrison/dealsieve/screenshots/inbox-light.png" width="420" alt="The inbox in the light theme: a list of passed deals on the left, the selected deal with its heat curve and reasons on the right" /><br /><sub>Inbox, light</sub></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/MorrisMorrison/dealsieve/screenshots/inbox-dark.png" width="420" alt="The same inbox in the dark theme" /><br /><sub>Inbox, dark</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/MorrisMorrison/dealsieve/screenshots/blocked.png" width="420" alt="The Blocked tab with a recurring pseudo-deal selected and the reason it was blocked" /><br /><sub>Blocked, with the reason why</sub></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/MorrisMorrison/dealsieve/screenshots/phone.png" width="150" alt="The deal list on a phone" /> <img src="https://raw.githubusercontent.com/MorrisMorrison/dealsieve/screenshots/phone-detail.png" width="150" alt="A deal's detail sheet on a phone" /><br /><sub>On a phone</sub></td>
+  </tr>
+</table>
 
 ## What it filters
 

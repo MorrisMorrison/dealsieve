@@ -21,6 +21,8 @@ dealsieve is a small self-hosted filter for deal feeds. One Go binary polls a so
 | `internal/judge/` | Placeholder interface for a later LLM opinion; v1 ships only `Noop` |
 | `internal/version/` | `Version`, stamped with `-ldflags -X` from the `VERSION` build arg |
 | `web/` | The page: `index.html`, `static/css`, `static/js` (vanilla ES modules, no build step), embedded by `embed.go` |
+| `docs-site/` | The docs website (Astro + Starlight): hand-written Markdown pages in `src/content/docs/`, published to GitHub Pages |
+| `screenshots/` | README screenshot tool (Node + Playwright, its own `package.json`): made-up demo `config.yaml` + RSS `feeds/`, `capture.mjs` runs the built binary against a fake feed server and writes `docs/screenshots/` (git-ignored). The `screenshots.yml` workflow publishes them to the `screenshots` branch |
 | `test/e2e/` | End-to-end test: builds the real binary and runs it against fake feed and ntfy servers |
 
 ## Commands
@@ -31,7 +33,11 @@ go test -race ./...                         # unit tests (CI runs -race)
 go test -tags e2e ./test/e2e/               # builds the binary, starts it with fake servers, stops it
 node --test web/static/js/*.test.js         # frontend unit tests (Node 24, no packages)
 CGO_ENABLED=0 go build ./cmd/dealsieve      # must stay CGO-free (distroless static image)
+# README screenshots (on Windows build -o dealsieve.exe): needs the built binary, ~2 min (waits for two 1m polls); first time also: npx playwright install chromium
+CGO_ENABLED=0 go build -o dealsieve ./cmd/dealsieve && (cd screenshots && npm ci && npm run capture)
 ```
+Docs site (in `docs-site/`): `npm ci`, `npm run dev` (preview), `npm run build` (also fails on a broken internal link). Edit the Markdown in `docs-site/src/content/docs/`; to add a page, create the file and list it in the sidebar in `astro.config.mjs`. Links inside pages need the `/dealsieve/` base.
+
 Running it needs a `config.yaml` (start from `config.example.yaml`) and writes `./data/dealsieve.db`. Both are git-ignored.
 
 ## How tests isolate the outside world
@@ -50,7 +56,7 @@ Running it needs a `config.yaml` (start from `config.example.yaml`) and writes `
 - **Schema changes** go in a new `internal/store/migrations/NNN_*.sql`; never edit an applied migration.
 - **Config:** every setting has a default in `config.defaults()` and is validated in `validate()`. Secrets come only from env vars (`DEALSIEVE_TELEGRAM_TOKEN`, `DEALSIEVE_NTFY_TOKEN`), never from the YAML. New settings go in `config.example.yaml` and the README table.
 - **API:** errors are `{"error": "..."}`. Writes are protected by `http.CrossOriginProtection`; every response gets `nosniff` and `no-referrer`. The page has no login by design — it's meant for a private network or behind a reverse proxy's auth.
-- **Front-end:** plain HTML, CSS and ES modules; no framework, no npm packages, no build step. Build the DOM with `textContent` and attributes, never `innerHTML` with data (deal titles are untrusted). Pure helpers (`format.js`, `sparkline.js`) get a `*.test.js` next to them.
+- **Front-end:** plain HTML, CSS and ES modules; no framework, no npm packages in `web/`, no build step (npm packages exist only in the dev tooling: `screenshots/` and `docs-site/`). Build the DOM with `textContent` and attributes, never `innerHTML` with data (deal titles are untrusted). Pure helpers (`format.js`, `sparkline.js`) get a `*.test.js` next to them.
 - **Being a good feed citizen:** keep default poll intervals reasonable, send the identifying `User-Agent` (`dealsieve/<version> (+repo URL)`), link every deal back to the original post.
 
 ## Public repo
@@ -60,7 +66,7 @@ This repository is public. Keep it free of personal infrastructure (domains, hos
 - Every change starts from a GitHub issue; one branch and one PR per issue, `Closes #N` in the PR body.
 - Branch names: `feat/…`, `fix/…`, `chore/…`, `docs/…`.
 - PR description: what changed, why, and what was verified (and what wasn't — e.g. "not run against the live feeds").
-- CI (`ci.yml`: gofmt, vet, `-race` tests, e2e, frontend tests; Docker build on PRs) must be green before merge. Unit-test coverage is uploaded to Codecov via OIDC (no token); `codecov.yml` keeps the statuses informational, never blocking.
+- CI (`ci.yml`: gofmt, vet, `-race` tests, e2e, frontend tests; Docker build on PRs; `docs.yml` builds the docs site on PRs and deploys it from `main`) must be green before merge. Unit-test coverage is uploaded to Codecov via OIDC (no token); `codecov.yml` keeps the statuses informational, never blocking.
 - A push to `main` publishes `ghcr.io/morrismorrison/dealsieve:latest` and `:main-<sha>`; a `vX.Y.Z` tag publishes `:X.Y.Z` (never moves `:latest`). The same tag also runs `release.yml`, which creates the GitHub release (pre-release for `v0.*`) with generated notes. Tag only a green `main` HEAD, after the release-process PR is merged.
 </content>
 </invoke>
