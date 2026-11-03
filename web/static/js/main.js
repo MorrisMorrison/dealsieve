@@ -91,7 +91,8 @@ async function act(kind, deal) {
   const neighbour = deals[i + 1] ?? deals[i - 1];
   try {
     await api.addAction(kind, deal.id);
-    if (kind !== 'hide_deal' || state.view !== 'blocked') state.selectedId = neighbour?.id ?? null;
+    // In the Blocked tab the deal stays listed, so the selection stays on it.
+    if (state.view !== 'blocked') state.selectedId = neighbour?.id ?? null;
     closeSheet();
     await load();
   } catch (err) {
@@ -155,7 +156,7 @@ document.addEventListener('keydown', (e) => {
   if (e.target.closest('input, select, textarea, [role=tab]')) return;
   if (e.key === 'ArrowDown' || e.key === 'j') { e.preventDefault(); move(1); }
   else if (e.key === 'ArrowUp' || e.key === 'k') { e.preventDefault(); move(-1); }
-  else if (e.key === 'Enter' && state.selectedId && !e.target.closest('button, a')) {
+  else if (e.key === 'Enter' && !e.repeat && state.selectedId && !e.target.closest('button, a')) {
     const deal = state.deals.find((d) => d.id === state.selectedId);
     if (deal) window.open(deal.url, '_blank', 'noopener,noreferrer');
   } else if (e.key === 'Escape') closeSheet();

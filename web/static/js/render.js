@@ -41,7 +41,7 @@ export function renderList(list, deals, selectedId, onSelect) {
     item.querySelector('.merchant').textContent = deal.merchant;
     const chip = item.querySelector('.chip');
     if (deal.decision === 'block') {
-      chip.textContent = deal.reasons[0] ?? 'blocked';
+      chip.textContent = sentence(deal.reasons[0] ?? 'blocked');
       chip.classList.add('block');
     } else if (deal.watchlist_hit) {
       chip.textContent = '★ watchlist';

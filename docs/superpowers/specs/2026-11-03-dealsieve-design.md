@@ -279,7 +279,7 @@ behind a reverse proxy or auth layer if it isn't only on a private network.
 - Watchlist hits skip the recurring rule (5) as well as the temperature rule (7). Fingerprints drop
   model numbers, so different products from one shop can share a key and look recurring, and the
   watchlist is explicit user intent. Hidden, muted, block keyword and junk still apply to them.
-- The Rules tab shows the effective rules (after defaults) as read-only JSON; "open" is the deal
+- The Rules view (a tab until issue #3) shows the effective rules (after defaults) as read-only JSON; "open" is the deal
   title link.
 - The action body is `{kind, deal_id}`; the server derives the value from the deal (hide: the deal ID,
   junk: its fingerprint, mute: its category or merchant), so clients can't inject arbitrary values.

@@ -34,7 +34,8 @@ func DealMessage(title, price, merchant string, temperature *int, reasons []stri
 	}
 	body := strings.Join(parts, " · ")
 	if len(reasons) > 0 {
-		body += "\n" + strings.Join(reasons, ", ")
+		// One reason per line: reasons can contain commas themselves.
+		body += "\n" + strings.Join(reasons, "\n")
 	}
 	return Message{Title: title, Body: body, ClickURL: url, ImageURL: imageURL}
 }
