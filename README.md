@@ -1,6 +1,6 @@
 # dealsieve
 
-[![Docs](https://github.com/MorrisMorrison/dealsieve/actions/workflows/docs.yml/badge.svg)](https://morrismorrison.github.io/dealsieve/)
+[![codecov](https://codecov.io/gh/MorrisMorrison/dealsieve/graph/badge.svg)](https://codecov.io/gh/MorrisMorrison/dealsieve) [![Docs](https://github.com/MorrisMorrison/dealsieve/actions/workflows/docs.yml/badge.svg)](https://morrismorrison.github.io/dealsieve/)
 
 Documentation: <https://morrismorrison.github.io/dealsieve/>
 
