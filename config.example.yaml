@@ -1,0 +1,31 @@
+# dealsieve config. Secrets come from environment variables, not this file:
+#   DEALSIEVE_TELEGRAM_TOKEN  (needed for telegram channels)
+#   DEALSIEVE_NTFY_TOKEN      (optional, for a protected ntfy server)
+
+poll:
+  trending: 5m          # the deals shown on the page
+  new: 2m               # every new deal, only matched against the watchlist
+
+rules:
+  min_temperature: 100
+  category_overrides:
+    "Elektronik": 60
+  muted_categories: ["Fashion & Accessoires", "Verträge"]
+  muted_merchants: []
+  block_keywords: [gratisprobe, gewinnspiel, cashback]
+  recurrence:
+    window: 90d         # look back this far for the same offer
+    max_seen: 2         # block from the 3rd time it shows up
+
+watchlist: [oled, rtx 5080, lego technic]
+
+notify:
+  - when: watchlist
+    channels: [ntfy-high]
+  - when: { min_temperature: 500 }
+    channels: [ntfy-default]
+
+channels:
+  ntfy-high:    { type: ntfy, url: https://ntfy.example.com, topic: deals, priority: high }
+  ntfy-default: { type: ntfy, url: https://ntfy.example.com, topic: deals, priority: default }
+  # telegram:   { type: telegram, chat_id: "123456789" }

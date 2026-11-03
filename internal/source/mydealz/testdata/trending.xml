@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:media="http://search.yahoo.com/mrss/" xmlns:pepper="http://www.pepper.com/rss" version="2.0">
+<channel>
+<title>mydealz</title>
+<link>https://www.mydealz.de/trending</link>
+<item>
+<category><![CDATA[Elektronik]]></category>
+<pepper:merchant name="Example Shop" price="899€"/>
+<media:content medium="image" url="https://static.example.test/1000001.jpg" width="100" height="100"/>
+<title><![CDATA[142° - Example OLED TV 55 Zoll]]></title>
+<description><![CDATA[<strong>899€ - Example Shop</strong>]]></description>
+<link>https://www.mydealz.de/deals/example-oled-tv-55-zoll-1000001</link>
+<pubDate>Tue, 03 Nov 2026 15:55:50 +0100</pubDate>
+<guid>https://www.mydealz.de/deals/example-oled-tv-55-zoll-1000001</guid>
+</item>
+<item>
+<category><![CDATA[Dienstleistungen & Verträge]]></category>
+<pepper:merchant price="0,01€"/>
+<title><![CDATA[102° - Lokal: Döner für 1 Cent am Donnerstag]]></title>
+<link>https://www.mydealz.de/deals/lokal-doner-fur-1-cent-1000002</link>
+</item>
+<item>
+<category><![CDATA[Reisen]]></category>
+<title><![CDATA[-15° - Example Air Flash Sale: Flüge ab 19,99€]]></title>
+<link>https://www.mydealz.de/deals/example-air-flash-sale-1000003</link>
+</item>
+<item>
+<category><![CDATA[Elektronik]]></category>
+<title><![CDATA[120° - Item without a thread id]]></title>
+<link>https://www.mydealz.de/deals/no-thread-id-here</link>
+</item>
+</channel>
+</rss>

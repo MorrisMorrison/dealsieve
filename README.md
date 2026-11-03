@@ -1,0 +1,69 @@
+# dealsieve
+
+A small, self-hosted filter for deal feeds. dealsieve reads a deal community's feeds, throws away
+the noise, and shows what's left on a simple web page, with optional push notifications.
+
+Its first (and so far only) source is [mydealz](https://www.mydealz.de). dealsieve is not affiliated
+with it; it reads the public RSS feeds, links every deal back to the original post, and is meant for
+personal use. Please respect the site's terms and keep polling intervals reasonable.
+
+## What it filters
+
+- **Recurring pseudo-deals.** The same kind of offer posted again and again ("flights from €19.99")
+  is recognized by a fingerprint of merchant + title words and blocked after it has been seen a
+  few times.
+- **Categories, merchants and keywords** you never want to see.
+- **Cold deals** below a temperature you choose (per category if you like).
+- **Your own feedback:** every deal card has *Hide*, *Junk*, *Mute category* and *Mute merchant*.
+  *Junk* blocks everything that looks like that deal from then on. Every click can be undone.
+
+Every decision is shown with its reason, and blocked deals stay visible in their own tab, so you
+can see whether a rule is too strict.
+
+## Watchlist and notifications
+
+Watchlist keywords are checked against every new deal as soon as it's posted, before it trends.
+Notification rules send watchlist hits, or deals above a temperature, to
+[ntfy](https://ntfy.sh) and/or Telegram.
+
+## Run it
+
+```bash
+docker run -d --name dealsieve -p 8080:8080 \
+  -v dealsieve-data:/data \
+  -v "$PWD/config.yaml:/config/config.yaml:ro" \
+  ghcr.io/morrismorrison/dealsieve:latest
+```
+
+Start from [`config.example.yaml`](config.example.yaml). The page has **no login**: keep it on a
+private network or put it behind your reverse proxy's authentication.
+
+With a bind mount instead of a named volume for `/data`, make the directory writable by UID 65532.
+
+## Configuration
+
+| Env var | Default | |
+|---|---|---|
+| `DEALSIEVE_CONFIG` | `config.yaml` (`/config/config.yaml` in the image) | Path to the YAML config |
+| `DEALSIEVE_DATA_DIR` | `./data` (`/data` in the image) | Where the SQLite database lives |
+| `DEALSIEVE_LISTEN` | `:8080` | Listen address |
+| `DEALSIEVE_LOG_FORMAT` | `text` | `text` or `json` |
+| `DEALSIEVE_TELEGRAM_TOKEN` | | Bot token, needed for Telegram channels |
+| `DEALSIEVE_NTFY_TOKEN` | | Access token for a protected ntfy server |
+| `DEALSIEVE_MYDEALZ_URL` | `https://www.mydealz.de` | Feed host (for tests) |
+
+Config changes apply on restart. Invalid configs are rejected at startup with a list of problems.
+
+## Development
+
+```bash
+go test ./...
+go test -tags e2e ./test/e2e/
+node --test web/static/js/*.test.js
+```
+
+The frontend is plain HTML, CSS and ES modules embedded into the binary: no build step.
+
+## License
+
+MIT

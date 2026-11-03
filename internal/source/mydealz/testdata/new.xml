@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:media="http://search.yahoo.com/mrss/" xmlns:pepper="http://www.pepper.com/rss" version="2.0">
+<channel>
+<title>mydealz</title>
+<link>https://www.mydealz.de</link>
+<item>
+<category><![CDATA[Elektronik]]></category>
+<pepper:merchant name="Example Shop" price="999€"/>
+<media:content medium="image" url="https://static.example.test/1000010.jpg" width="100" height="100"/>
+<title><![CDATA[Example RTX 5080 Grafikkarte 16GB]]></title>
+<link>https://www.mydealz.de/deals/example-rtx-5080-grafikkarte-1000010</link>
+</item>
+<item>
+<category><![CDATA[Beauty & Gesundheit]]></category>
+<title><![CDATA[Gratisprobe Example Handcreme]]></title>
+<link>https://www.mydealz.de/deals/gratisprobe-example-handcreme-1000011</link>
+</item>
+<item>
+<title><![CDATA[Bad link]]></title>
+<link>javascript:alert(1)</link>
+</item>
+</channel>
+</rss>

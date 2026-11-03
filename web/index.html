@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dealsieve</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <script type="module" src="/static/js/main.js"></script>
+</head>
+<body>
+  <header class="top">
+    <h1>dealsieve</h1>
+    <button id="theme-toggle" type="button" aria-label="Toggle light and dark theme">◐</button>
+  </header>
+  <div id="stale" class="stale" role="status" hidden></div>
+  <nav class="tabs" role="tablist">
+    <button type="button" role="tab" data-view="passed" aria-selected="true">Passed</button>
+    <button type="button" role="tab" data-view="watchlist" aria-selected="false">Watchlist hits</button>
+    <button type="button" role="tab" data-view="blocked" aria-selected="false">Blocked</button>
+    <button type="button" role="tab" data-view="rules" aria-selected="false">Rules</button>
+  </nav>
+  <form id="filters" class="filters">
+    <select id="category" aria-label="Category"><option value="">All categories</option></select>
+    <input id="search" type="search" placeholder="Search titles" aria-label="Search titles">
+  </form>
+  <main id="content" aria-live="polite"></main>
+
+  <template id="deal-card">
+    <article class="deal">
+      <img class="deal-img" alt="" loading="lazy">
+      <div class="deal-body">
+        <a class="deal-title" target="_blank" rel="noopener noreferrer"></a>
+        <p class="deal-meta"><span class="deal-price"></span><span class="deal-merchant"></span><span class="deal-category"></span></p>
+        <p class="deal-heat">
+          <span class="deal-temp"></span>
+          <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
+            <polyline fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"/>
+          </svg>
+        </p>
+        <ul class="chips"></ul>
+        <div class="actions">
+          <button type="button" data-kind="hide_deal">Hide</button>
+          <button type="button" data-kind="junk">Junk</button>
+          <button type="button" data-kind="mute_category">Mute category</button>
+          <button type="button" data-kind="mute_merchant">Mute merchant</button>
+        </div>
+      </div>
+    </article>
+  </template>
+</body>
+</html>
