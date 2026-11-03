@@ -21,6 +21,7 @@ dealsieve is a small self-hosted filter for deal feeds. One Go binary polls a so
 | `internal/judge/` | Placeholder interface for a later LLM opinion; v1 ships only `Noop` |
 | `internal/version/` | `Version`, stamped with `-ldflags -X` from the `VERSION` build arg |
 | `web/` | The page: `index.html`, `static/css`, `static/js` (vanilla ES modules, no build step), embedded by `embed.go` |
+| `docs-site/` | The docs website (Astro + Starlight): hand-written Markdown pages in `src/content/docs/`, published to GitHub Pages |
 | `test/e2e/` | End-to-end test: builds the real binary and runs it against fake feed and ntfy servers |
 
 ## Commands
@@ -32,6 +33,8 @@ go test -tags e2e ./test/e2e/               # builds the binary, starts it with 
 node --test web/static/js/*.test.js         # frontend unit tests (Node 24, no packages)
 CGO_ENABLED=0 go build ./cmd/dealsieve      # must stay CGO-free (distroless static image)
 ```
+Docs site (in `docs-site/`): `npm ci`, `npm run dev` (preview), `npm run build` (also fails on a broken internal link). Edit the Markdown in `docs-site/src/content/docs/`; to add a page, create the file and list it in the sidebar in `astro.config.mjs`. Links inside pages need the `/dealsieve/` base.
+
 Running it needs a `config.yaml` (start from `config.example.yaml`) and writes `./data/dealsieve.db`. Both are git-ignored.
 
 ## How tests isolate the outside world
@@ -60,7 +63,7 @@ This repository is public. Keep it free of personal infrastructure (domains, hos
 - Every change starts from a GitHub issue; one branch and one PR per issue, `Closes #N` in the PR body.
 - Branch names: `feat/…`, `fix/…`, `chore/…`, `docs/…`.
 - PR description: what changed, why, and what was verified (and what wasn't — e.g. "not run against the live feeds").
-- CI (`ci.yml`: gofmt, vet, `-race` tests, e2e, frontend tests; Docker build on PRs) must be green before merge.
+- CI (`ci.yml`: gofmt, vet, `-race` tests, e2e, frontend tests; Docker build on PRs; `docs.yml` builds the docs site on PRs and deploys it from `main`) must be green before merge.
 - A push to `main` publishes `ghcr.io/morrismorrison/dealsieve:latest` and `:main-<sha>`; a `vX.Y.Z` tag publishes `:X.Y.Z` (never moves `:latest`).
 </content>
 </invoke>
