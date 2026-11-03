@@ -216,15 +216,24 @@ startup errors.
 
 ## Web page
 
-One page, mobile-friendly, light/dark theme (follows the system, with a toggle).
+One page, mobile-friendly, light/dark theme (follows the system, with a toggle). Laid out as an
+inbox with a detail panel (issue #3).
 
-- Tabs: **Passed** · **Watchlist hits** · **Blocked** · **Rules**.
-- Deal card: image, title, price, merchant, category, temperature with a heat-curve **sparkline**
-  (inline SVG from the snapshots), reason chips, and buttons: open, hide, junk, mute category,
-  mute merchant.
+- Header: a live feed-status line from `/api/status` ("Feeds healthy · updated 2 min ago", or a
+  red stale warning when a feed hasn't polled successfully for 3× its interval), a **Rules** button
+  and the theme toggle.
+- Tabs: **Passed** · **Watchlist** · **Blocked**, each with its count (`counts` from `/api/deals`).
+- List: thumbnail, one-line title, price, shop, temperature coloured by heat, age; blocked deals
+  show their block reason, watchlist hits a watchlist tag. The first deal is selected.
+- Detail panel: full title, price, a large heat curve (inline SVG from the snapshots), "Why it's
+  here" / "Why it's blocked" from the verdict's reasons, category, the feeds the deal was seen in,
+  an **Open deal** button and Hide / Junk / Mute shop / Mute category.
+- Phones: the list is full width; a deal opens as a full-screen sheet with a back button.
+- Keyboard: ↑/↓ (or j/k) moves the selection, Enter opens the deal, Esc closes the sheet; the tabs
+  use `tab`/`tabpanel` roles with arrow-key switching.
 - Filters: category, text search. Both filter the loaded list in the browser.
-- **Rules tab:** the YAML rules (read-only) and the list of actions, each with **undo**.
-- A **stale banner** when a feed hasn't polled successfully for 3× its interval, using `/api/status`.
+- **Rules view** (behind the Rules button): the list of actions, each with **undo**, and the
+  effective rules (read-only).
 
 ## Polling and errors
 

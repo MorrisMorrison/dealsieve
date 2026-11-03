@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sparkPoints } from './sparkline.js';
+import { areaPoints, sparkPoints } from './sparkline.js';
 
 test('needs at least two values', () => {
   assert.equal(sparkPoints([]), '');
@@ -13,4 +13,9 @@ test('scales values into the 100x24 box', () => {
 
 test('a flat series sits on the bottom', () => {
   assert.equal(sparkPoints([7, 7]), '0,24 100,24');
+});
+
+test('area closes the line down to the bottom edge', () => {
+  assert.equal(areaPoints([0, 100], 100, 40), '0,40 0,40 100,0 100,40');
+  assert.equal(areaPoints([5]), '');
 });

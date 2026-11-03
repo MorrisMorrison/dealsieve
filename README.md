@@ -14,11 +14,14 @@ personal use. Please respect the site's terms and keep polling intervals reasona
   few times.
 - **Categories, merchants and keywords** you never want to see.
 - **Cold deals** below a temperature you choose (per category if you like).
-- **Your own feedback:** every deal card has *Hide*, *Junk*, *Mute category* and *Mute merchant*.
-  *Junk* blocks everything that looks like that deal from then on. Every click can be undone.
+- **Your own feedback:** every deal's detail panel has *Hide*, *Junk*, *Mute shop* and
+  *Mute category*. *Junk* blocks everything that looks like that deal from then on. Every click
+  can be undone from the Rules view.
 
-Every decision is shown with its reason, and blocked deals stay visible in their own tab, so you
-can see whether a rule is too strict.
+The page is an inbox: a list of deals on the left and the selected deal on the right, with its
+heat curve and why it's there (or why it's blocked). Blocked deals stay visible in their own tab,
+so you can see whether a rule is too strict. Use ↑/↓ to move through the list and Enter to open a
+deal; on a phone, a deal opens as a full-screen sheet.
 
 ## Watchlist and notifications
 
