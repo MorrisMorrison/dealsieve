@@ -1,5 +1,7 @@
 # dealsieve
 
+[![codecov](https://codecov.io/gh/MorrisMorrison/dealsieve/graph/badge.svg)](https://codecov.io/gh/MorrisMorrison/dealsieve)
+
 A small, self-hosted filter for deal feeds. dealsieve reads a deal community's feeds, throws away
 the noise, and shows what's left on a simple web page, with optional push notifications.
 
