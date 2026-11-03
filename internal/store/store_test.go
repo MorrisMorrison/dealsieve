@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"maps"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -167,6 +168,21 @@ func TestListDealsViews(t *testing.T) {
 	}
 	if _, err := s.ListDeals(ctx, "nope", t0, 10); err == nil {
 		t.Error("want an error for an unknown view")
+	}
+
+	counts, err := s.CountViews(ctx, t0.Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := map[string]int{ViewPassed: 2, ViewWatchlist: 1, ViewBlocked: 1}; !maps.Equal(counts, want) {
+		t.Errorf("counts = %v, want %v", counts, want)
+	}
+	counts, err = s.CountViews(ctx, t0.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := map[string]int{ViewPassed: 0, ViewWatchlist: 0, ViewBlocked: 0}; !maps.Equal(counts, want) {
+		t.Errorf("counts after the cut-off = %v, want %v", counts, want)
 	}
 }
 

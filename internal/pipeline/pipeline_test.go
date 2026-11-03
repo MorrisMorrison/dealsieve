@@ -110,8 +110,9 @@ func TestWatchlistDealIsNotifiedOnce(t *testing.T) {
 	if h.push.count() != 1 {
 		t.Fatalf("sent %d notifications, want 1", h.push.count())
 	}
-	if m := h.push.sent[0]; m.Title != "Example OLED TV" || !strings.Contains(m.Body, "watchlist: oled") {
-		t.Errorf("message = %+v", m)
+	want := "9€ · 150° · Example Shop\nwatchlist: oled\nhot: 150° (minimum 100°)\nnew offer: not seen in the last 90 days"
+	if m := h.push.sent[0]; m.Title != "Example OLED TV" || m.Body != want {
+		t.Errorf("message = %+v, want body %q", m, want)
 	}
 }
 

@@ -24,6 +24,11 @@ func TestDealMessage(t *testing.T) {
 	if m := DealMessage("T", "", "", nil, nil, "u", ""); m.Body != "" {
 		t.Errorf("empty body = %q", m.Body)
 	}
+	// Reasons contain commas themselves, so each gets its own line.
+	m = DealMessage("T", "9€", "", nil, []string{"watchlist: oled", "below the 100° minimum, kept for your watchlist"}, "u", "")
+	if want := "9€\nwatchlist: oled\nbelow the 100° minimum, kept for your watchlist"; m.Body != want {
+		t.Errorf("body = %q, want %q", m.Body, want)
+	}
 }
 
 func TestNtfySend(t *testing.T) {

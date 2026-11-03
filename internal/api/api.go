@@ -90,6 +90,11 @@ func (s *Server) listDeals(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
+	counts, err := s.Store.CountViews(r.Context(), s.Now().Add(-listWindow))
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
 	ids := make([]string, len(listed))
 	for i, l := range listed {
 		ids[i] = l.ID
@@ -116,7 +121,7 @@ func (s *Server) listDeals(w http.ResponseWriter, r *http.Request) {
 			Score: l.Verdict.Score, WatchlistHit: l.Verdict.WatchlistHit, Reasons: reasons,
 		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"deals": out})
+	writeJSON(w, http.StatusOK, map[string]any{"deals": out, "counts": counts})
 }
 
 func (s *Server) addAction(w http.ResponseWriter, r *http.Request) {

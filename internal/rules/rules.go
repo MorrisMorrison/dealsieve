@@ -42,7 +42,7 @@ type Result struct {
 	Decision     Decision
 	Score        int
 	WatchlistHit bool
-	Reasons      []string // the block reason, if any, comes first
+	Reasons      []string // the block reason, if any, comes first; a pass ends with its pass reasons
 }
 
 type Engine struct {
@@ -90,6 +90,8 @@ func (e *Engine) Evaluate(d Deal, f Facts) Result {
 	if reason, blocked := e.blockReason(d, f, title, res.WatchlistHit); blocked {
 		res.Decision = Block
 		res.Reasons = append([]string{reason}, res.Reasons...)
+	} else {
+		res.Reasons = append(res.Reasons, e.passReasons(d, f, strings.ToLower(d.Category), res.WatchlistHit)...)
 	}
 	return res
 }
@@ -128,6 +130,29 @@ func (e *Engine) blockReason(d Deal, f Facts, title string, watchlistHit bool) (
 		return "new-only", true
 	}
 	return "", false
+}
+
+// passReasons says why a deal passed: its temperature against the minimum and
+// how often it was seen before. A watchlist hit may pass despite either.
+func (e *Engine) passReasons(d Deal, f Facts, category string, watchlistHit bool) []string {
+	var out []string
+	if d.Temperature != nil {
+		if minimum := e.minTemperatureFor(category); *d.Temperature >= minimum {
+			out = append(out, fmt.Sprintf("hot: %d° (minimum %d°)", *d.Temperature, minimum))
+		} else {
+			out = append(out, fmt.Sprintf("below the %d° minimum, kept for your watchlist", minimum))
+		}
+	}
+	days := int(e.window.Hours() / 24)
+	switch {
+	case f.Recurrence == 0:
+		out = append(out, fmt.Sprintf("new offer: not seen in the last %d days", days))
+	case f.Recurrence < e.maxSeen:
+		out = append(out, fmt.Sprintf("seen %d× before in the last %d days (limit %d)", f.Recurrence, days, e.maxSeen))
+	default:
+		out = append(out, fmt.Sprintf("seen %d× before in the last %d days, kept for your watchlist", f.Recurrence, days))
+	}
+	return out
 }
 
 func (e *Engine) minTemperatureFor(category string) int {

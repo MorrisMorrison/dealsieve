@@ -8,44 +8,83 @@
   <script type="module" src="/static/js/main.js"></script>
 </head>
 <body>
-  <header class="top">
-    <h1>dealsieve</h1>
-    <button id="theme-toggle" type="button" aria-label="Toggle light and dark theme">◐</button>
-  </header>
-  <div id="stale" class="stale" role="status" hidden></div>
-  <nav class="tabs" role="tablist">
-    <button type="button" role="tab" data-view="passed" aria-selected="true">Passed</button>
-    <button type="button" role="tab" data-view="watchlist" aria-selected="false">Watchlist hits</button>
-    <button type="button" role="tab" data-view="blocked" aria-selected="false">Blocked</button>
-    <button type="button" role="tab" data-view="rules" aria-selected="false">Rules</button>
-  </nav>
-  <form id="filters" class="filters">
-    <select id="category" aria-label="Category"><option value="">All categories</option></select>
-    <input id="search" type="search" placeholder="Search titles" aria-label="Search titles">
-  </form>
-  <main id="content" aria-live="polite"></main>
-
-  <template id="deal-card">
-    <article class="deal">
-      <img class="deal-img" alt="" loading="lazy">
-      <div class="deal-body">
-        <a class="deal-title" target="_blank" rel="noopener noreferrer"></a>
-        <p class="deal-meta"><span class="deal-price"></span><span class="deal-merchant"></span><span class="deal-category"></span></p>
-        <p class="deal-heat">
-          <span class="deal-temp"></span>
-          <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
-            <polyline fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"/>
-          </svg>
-        </p>
-        <ul class="chips"></ul>
-        <div class="actions">
-          <button type="button" data-kind="hide_deal">Hide</button>
-          <button type="button" data-kind="junk">Junk</button>
-          <button type="button" data-kind="mute_category">Mute category</button>
-          <button type="button" data-kind="mute_merchant">Mute merchant</button>
-        </div>
+  <div class="app">
+    <header class="appbar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 4h12M4 8h8M6 12h4"/></svg>
+        </span>
+        dealsieve
       </div>
-    </article>
+      <span id="status" class="status" role="status"></span>
+      <span class="spacer"></span>
+      <button id="rules-toggle" class="icon-btn" type="button" aria-pressed="false" aria-label="Rules and your clicks" title="Rules and your clicks">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 4h10M3 8h10M3 12h6"/></svg>
+      </button>
+      <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle light and dark theme" title="Toggle light and dark theme">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11A5.5 5.5 0 0 0 8 2.5z" fill="currentColor"/></svg>
+      </button>
+    </header>
+
+    <div id="toolbar" class="toolbar">
+      <div class="segmented" role="tablist" aria-label="Deal views">
+        <button type="button" role="tab" id="tab-passed" data-view="passed" aria-controls="deals-panel" aria-selected="true">Passed <span class="count num" data-count="passed"></span></button>
+        <button type="button" role="tab" id="tab-watchlist" data-view="watchlist" aria-controls="deals-panel" aria-selected="false" tabindex="-1">Watchlist <span class="count num" data-count="watchlist"></span></button>
+        <button type="button" role="tab" id="tab-blocked" data-view="blocked" aria-controls="deals-panel" aria-selected="false" tabindex="-1">Blocked <span class="count num" data-count="blocked"></span></button>
+      </div>
+      <label class="search">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="m14 14-3.5-3.5"/></svg>
+        <input id="search" type="search" placeholder="Search deals" aria-label="Search deals">
+      </label>
+      <select id="category" class="select" aria-label="Category"><option value="">All categories</option></select>
+    </div>
+
+    <main id="deals-panel" class="split" role="tabpanel" aria-labelledby="tab-passed">
+      <ul id="list" class="inbox" role="listbox" aria-label="Deals" tabindex="0"></ul>
+      <aside id="detail" class="detail" aria-label="Deal details"></aside>
+    </main>
+
+    <main id="rules-panel" class="rules" hidden></main>
+  </div>
+
+  <template id="item-template">
+    <li class="item" role="option" aria-selected="false">
+      <span class="thumb"></span>
+      <span class="grow">
+        <span class="title"></span>
+        <span class="sub"><span class="price num"></span><span class="meta merchant"></span><span class="chip"></span></span>
+      </span>
+      <span class="side"><span class="temp num"></span><span class="when"></span></span>
+    </li>
+  </template>
+
+  <template id="detail-template">
+    <div class="detail-inner">
+      <button type="button" class="back" data-back>← Back to deals</button>
+      <h2 class="detail-title"></h2>
+      <div class="detail-price"><span class="price num"></span> <span class="meta merchant"></span></div>
+      <figure class="heat">
+        <figcaption class="row-between meta"><span>Temperature</span><span class="temp num"></span></figcaption>
+        <svg class="bigspark" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"><polygon/><polyline/></svg>
+        <div class="row-between meta small"><span class="first-seen"></span><span class="heat-now">now</span></div>
+      </figure>
+      <section>
+        <h3 class="label why-label"></h3>
+        <ul class="why"></ul>
+      </section>
+      <dl class="kv">
+        <dt>Category</dt><dd class="category"></dd>
+        <dt>Seen in</dt><dd class="feeds"></dd>
+      </dl>
+      <div class="btnrow">
+        <a class="btn primary" target="_blank" rel="noopener noreferrer">Open deal ↗</a>
+        <button type="button" class="btn" data-kind="hide_deal">Hide</button>
+        <button type="button" class="btn" data-kind="junk">Junk</button>
+        <button type="button" class="btn" data-kind="mute_merchant">Mute shop</button>
+        <button type="button" class="btn" data-kind="mute_category">Mute category</button>
+      </div>
+      <p class="hint meta small">↑ ↓ to move · Enter to open</p>
+    </div>
   </template>
 </body>
 </html>
