@@ -7,6 +7,23 @@ Its first (and so far only) source is [mydealz](https://www.mydealz.de). dealsie
 with it; it reads the public RSS feeds, links every deal back to the original post, and is meant for
 personal use. Please respect the site's terms and keep polling intervals reasonable.
 
+## Screenshots
+
+<!-- Generated from made-up demo data by the "README screenshots" workflow
+     (.github/workflows/screenshots.yml, capture script in screenshots/) and published
+     to the `screenshots` branch on every relevant push to main. Do not edit by hand. -->
+
+<table align="center">
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/MorrisMorrison/dealsieve/screenshots/inbox-light.png" width="420" alt="The inbox in the light theme: a list of passed deals on the left, the selected deal with its heat curve and reasons on the right" /><br /><sub>Inbox, light</sub></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/MorrisMorrison/dealsieve/screenshots/inbox-dark.png" width="420" alt="The same inbox in the dark theme" /><br /><sub>Inbox, dark</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/MorrisMorrison/dealsieve/screenshots/blocked.png" width="420" alt="The Blocked tab with a recurring pseudo-deal selected and the reason it was blocked" /><br /><sub>Blocked, with the reason why</sub></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/MorrisMorrison/dealsieve/screenshots/phone.png" width="150" alt="The deal list on a phone" /> <img src="https://raw.githubusercontent.com/MorrisMorrison/dealsieve/screenshots/phone-detail.png" width="150" alt="A deal's detail sheet on a phone" /><br /><sub>On a phone</sub></td>
+  </tr>
+</table>
+
 ## What it filters
 
 - **Recurring pseudo-deals.** The same kind of offer posted again and again ("flights from €19.99")
