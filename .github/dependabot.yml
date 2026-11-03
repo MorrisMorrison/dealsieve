@@ -1,18 +1,55 @@
 version: 2
 updates:
+  # GitHub Actions used by the workflows in .github/workflows
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-  - package-ecosystem: npm
-    directory: /docs-site
-    schedule:
-      interval: weekly
-  - package-ecosystem: npm
-    directory: /screenshots
-    schedule:
-      interval: weekly
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Go module (the dealsieve binary)
   - package-ecosystem: gomod
     directory: /
     schedule:
       interval: weekly
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      go-modules:
+        patterns: ["*"]
+
+  # Base images in the Dockerfile (golang build stage, distroless runtime)
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore(deps)
+
+  # Docs site (Astro + Starlight). Majors arrive as their own PRs.
+  - package-ecosystem: npm
+    directory: /docs-site
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      docs-site:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # README screenshot tool (Playwright). Majors arrive as their own PRs.
+  - package-ecosystem: npm
+    directory: /screenshots
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      screenshots:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
