@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:media="http://search.yahoo.com/mrss/" xmlns:pepper="http://www.pepper.com/rss" version="2.0">
+<channel>
+<title>mydealz (demo data)</title>
+<link>https://www.mydealz.de/trending</link>
+<item>
+<category><![CDATA[Elektronik]]></category>
+<pepper:merchant name="Example Shop" price="649€"/>
+<media:content medium="image" url="{{BASE}}/img/2000001.svg" width="100" height="100"/>
+<title><![CDATA[264° - Example OLED TV 55 Zoll 4K]]></title>
+<description><![CDATA[<strong>649€ - Example Shop</strong>]]></description>
+<link>https://www.mydealz.de/deals/example-oled-tv-55-zoll-4k-2000001</link>
+<guid>https://www.mydealz.de/deals/example-oled-tv-55-zoll-4k-2000001</guid>
+</item>
+<item>
+<category><![CDATA[Elektronik]]></category>
+<pepper:merchant name="Example Audio" price="79€"/>
+<media:content medium="image" url="{{BASE}}/img/2000002.svg" width="100" height="100"/>
+<title><![CDATA[366° - Example Noise-Cancelling Kopfhörer Bluetooth]]></title>
+<description><![CDATA[<strong>79€ - Example Audio</strong>]]></description>
+<link>https://www.mydealz.de/deals/example-noise-cancelling-kopfh-rer-bluetooth-2000002</link>
+<guid>https://www.mydealz.de/deals/example-noise-cancelling-kopfh-rer-bluetooth-2000002</guid>
+</item>
+<item>
+<category><![CDATA[Haushalt & Wohnen]]></category>
+<pepper:merchant name="Example Home" price="199€"/>
+<media:content medium="image" url="{{BASE}}/img/2000003.svg" width="100" height="100"/>
+<title><![CDATA[520° - Example Saugroboter mit Wischfunktion]]></title>
+<description><![CDATA[<strong>199€ - Example Home</strong>]]></description>
+<link>https://www.mydealz.de/deals/example-saugroboter-mit-wischfunktion-2000003</link>
+<guid>https://www.mydealz.de/deals/example-saugroboter-mit-wischfunktion-2000003</guid>
+</item>
+<item>
+<category><![CDATA[Möbel]]></category>
+<pepper:merchant name="Example Living" price="289€"/>
+<media:content medium="image" url="{{BASE}}/img/2000004.svg" width="100" height="100"/>
+<title><![CDATA[642° - Example Höhenverstellbarer Schreibtisch 160 cm]]></title>
+<description><![CDATA[<strong>289€ - Example Living</strong>]]></description>
+<link>https://www.mydealz.de/deals/example-h-henverstellbarer-schreibtisch-160-cm-2000004</link>
+<guid>https://www.mydealz.de/deals/example-h-henverstellbarer-schreibtisch-160-cm-2000004</guid>
+</item>
+<item>
+<category><![CDATA[Haushalt & Wohnen]]></category>
+<pepper:merchant name="Example Kitchen" price="129€"/>
+<media:content medium="image" url="{{BASE}}/img/2000005.svg" width="100" height="100"/>
+<title><![CDATA[158° - Example Espressomaschine mit Milchaufschäumer]]></title>
+<description><![CDATA[<strong>129€ - Example Kitchen</strong>]]></description>
+<link>https://www.mydealz.de/deals/example-espressomaschine-mit-milchaufsch-umer-2000005</link>
+<guid>https://www.mydealz.de/deals/example-espressomaschine-mit-milchaufsch-umer-2000005</guid>
+</item>
+<item>
+<category><![CDATA[Sport & Outdoor]]></category>
+<pepper:merchant name="Example Outdoor" price="35€"/>
+<media:content medium="image" url="{{BASE}}/img/2000006.svg" width="100" height="100"/>
+<title><![CDATA[171° - Example Campingkocher faltbar]]></title>
+<description><![CDATA[<strong>35€ - Example Outdoor</strong>]]></description>
+<link>https://www.mydealz.de/deals/example-campingkocher-faltbar-2000006</link>
+<guid>https://www.mydealz.de/deals/example-campingkocher-faltbar-2000006</guid>
+</item>
+<item>
+<category><![CDATA[Fashion & Accessoires]]></category>
+<pepper:merchant name="Example Sport" price="59€"/>
+<media:content medium="image" url="{{BASE}}/img/2000007.svg" width="100" height="100"/>
+<title><![CDATA[245° - Example Laufschuhe Herren, viele Größen]]></title>
+<description><![CDATA[<strong>59€ - Example Sport</strong>]]></description>
+<link>https://www.mydealz.de/deals/example-laufschuhe-herren-viele-gr-en-2000007</link>
+<guid>https://www.mydealz.de/deals/example-laufschuhe-herren-viele-gr-en-2000007</guid>
+</item>
+<item>
+<category><![CDATA[Lebensmittel]]></category>
+<pepper:merchant name="Example Market" price="0€"/>
+<media:content medium="image" url="{{BASE}}/img/2000008.svg" width="100" height="100"/>
+<title><![CDATA[176° - Gratisprobe Example Kaffee Probierpaket]]></title>
+<description><![CDATA[<strong>0€ - Example Market</strong>]]></description>
+<link>https://www.mydealz.de/deals/gratisprobe-example-kaffee-probierpaket-2000008</link>
+<guid>https://www.mydealz.de/deals/gratisprobe-example-kaffee-probierpaket-2000008</guid>
+</item>
+<item>
+<category><![CDATA[Reisen]]></category>
+<pepper:merchant name="Example Air" price="19,99€"/>
+<media:content medium="image" url="{{BASE}}/img/2000009.svg" width="100" height="100"/>
+<title><![CDATA[251° - Example Air Flash Sale: Flüge ab 19,99€]]></title>
+<description><![CDATA[<strong>19,99€ - Example Air</strong>]]></description>
+<link>https://www.mydealz.de/deals/example-air-flash-sale-fl-ge-ab-19-99-2000009</link>
+<guid>https://www.mydealz.de/deals/example-air-flash-sale-fl-ge-ab-19-99-2000009</guid>
+</item>
+<item>
+<category><![CDATA[Reisen]]></category>
+<pepper:merchant name="Example Air" price="24,99€"/>
+<media:content medium="image" url="{{BASE}}/img/2000010.svg" width="100" height="100"/>
+<title><![CDATA[150° - Example Air Flash Sale: Flüge ab 24,99€]]></title>
+<description><![CDATA[<strong>24,99€ - Example Air</strong>]]></description>
+<link>https://www.mydealz.de/deals/example-air-flash-sale-fl-ge-ab-24-99-nach-rom-2000010</link>
+<guid>https://www.mydealz.de/deals/example-air-flash-sale-fl-ge-ab-24-99-nach-rom-2000010</guid>
+</item>
+<item>
+<category><![CDATA[Reisen]]></category>
+<pepper:merchant name="Example Air" price="17,99€"/>
+<media:content medium="image" url="{{BASE}}/img/2000011.svg" width="100" height="100"/>
+<title><![CDATA[133° - Example Air Flash Sale: Flüge ab 17,99€]]></title>
+<description><![CDATA[<strong>17,99€ - Example Air</strong>]]></description>
+<link>https://www.mydealz.de/deals/example-air-flash-sale-fl-ge-ab-17-99-nach-wien-2000011</link>
+<guid>https://www.mydealz.de/deals/example-air-flash-sale-fl-ge-ab-17-99-nach-wien-2000011</guid>
+</item>
+<item>
+<category><![CDATA[Reisen]]></category>
+<pepper:merchant name="Example Air" price="21,99€"/>
+<media:content medium="image" url="{{BASE}}/img/2000012.svg" width="100" height="100"/>
+<title><![CDATA[119° - Example Air Flash Sale: Flüge ab 21,99€]]></title>
+<description><![CDATA[<strong>21,99€ - Example Air</strong>]]></description>
+<link>https://www.mydealz.de/deals/example-air-flash-sale-fl-ge-ab-21-99-nach-porto-2000012</link>
+<guid>https://www.mydealz.de/deals/example-air-flash-sale-fl-ge-ab-21-99-nach-porto-2000012</guid>
+</item>
+<item>
+<category><![CDATA[Elektronik]]></category>
+<pepper:merchant name="Example Tech" price="24€"/>
+<media:content medium="image" url="{{BASE}}/img/2000013.svg" width="100" height="100"/>
+<title><![CDATA[52° - Example Powerbank 20000 mAh]]></title>
+<description><![CDATA[<strong>24€ - Example Tech</strong>]]></description>
+<link>https://www.mydealz.de/deals/example-powerbank-20000-mah-2000013</link>
+<guid>https://www.mydealz.de/deals/example-powerbank-20000-mah-2000013</guid>
+</item>
+<item>
+<category><![CDATA[Elektronik]]></category>
+<pepper:merchant name="Example Tech" price="9€"/>
+<media:content medium="image" url="{{BASE}}/img/2000014.svg" width="100" height="100"/>
+<title><![CDATA[-8° - Example USB-C Kabel 3er Pack]]></title>
+<description><![CDATA[<strong>9€ - Example Tech</strong>]]></description>
+<link>https://www.mydealz.de/deals/example-usb-c-kabel-3er-pack-2000014</link>
+<guid>https://www.mydealz.de/deals/example-usb-c-kabel-3er-pack-2000014</guid>
+</item>
+</channel>
+</rss>

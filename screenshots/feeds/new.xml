@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:media="http://search.yahoo.com/mrss/" xmlns:pepper="http://www.pepper.com/rss" version="2.0">
+<channel>
+<title>mydealz (demo data)</title>
+<link>https://www.mydealz.de/trending</link>
+<item>
+<category><![CDATA[Elektronik]]></category>
+<pepper:merchant name="Example Shop" price="399€"/>
+<media:content medium="image" url="{{BASE}}/img/2000015.svg" width="100" height="100"/>
+<title><![CDATA[3° - Example OLED Monitor 27 Zoll 240 Hz]]></title>
+<description><![CDATA[<strong>399€ - Example Shop</strong>]]></description>
+<link>https://www.mydealz.de/deals/example-oled-monitor-27-zoll-240-hz-2000015</link>
+<guid>https://www.mydealz.de/deals/example-oled-monitor-27-zoll-240-hz-2000015</guid>
+</item>
+</channel>
+</rss>
