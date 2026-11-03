@@ -64,6 +64,6 @@ This repository is public. Keep it free of personal infrastructure (domains, hos
 - Branch names: `feat/…`, `fix/…`, `chore/…`, `docs/…`.
 - PR description: what changed, why, and what was verified (and what wasn't — e.g. "not run against the live feeds").
 - CI (`ci.yml`: gofmt, vet, `-race` tests, e2e, frontend tests; Docker build on PRs; `docs.yml` builds the docs site on PRs and deploys it from `main`) must be green before merge.
-- A push to `main` publishes `ghcr.io/morrismorrison/dealsieve:latest` and `:main-<sha>`; a `vX.Y.Z` tag publishes `:X.Y.Z` (never moves `:latest`).
+- A push to `main` publishes `ghcr.io/morrismorrison/dealsieve:latest` and `:main-<sha>`; a `vX.Y.Z` tag publishes `:X.Y.Z` (never moves `:latest`). The same tag also runs `release.yml`, which creates the GitHub release (pre-release for `v0.*`) with generated notes. Tag only a green `main` HEAD, after the release-process PR is merged.
 </content>
 </invoke>

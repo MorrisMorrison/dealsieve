@@ -47,6 +47,11 @@ private network or put it behind your reverse proxy's authentication.
 
 With a bind mount instead of a named volume for `/data`, make the directory writable by UID 65532.
 
+**Image tags.** `:latest` follows `main` (every merged change). To stay on a release instead, pin its
+version, e.g. `ghcr.io/morrismorrison/dealsieve:0.0.1`; see the
+[releases page](https://github.com/MorrisMorrison/dealsieve/releases). dealsieve is pre-1.0: releases
+are snapshots on the way to a stable 1.0, not long-term-supported versions.
+
 ## Configuration
 
 | Env var | Default | |
