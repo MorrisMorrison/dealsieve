@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/MorrisMorrison/dealsieve/internal/notify"
 	"github.com/MorrisMorrison/dealsieve/internal/settings"
 	"github.com/MorrisMorrison/dealsieve/internal/settingsvc"
+	"github.com/MorrisMorrison/dealsieve/internal/source/pepper"
 	"github.com/MorrisMorrison/dealsieve/internal/suggest"
 )
 
@@ -22,7 +25,28 @@ func (s *Server) settingsBody(snap settingsvc.Snapshot) map[string]any {
 		"updated_at": snap.UpdatedAt,
 		"settings":   snap.Settings,
 		"warnings":   settings.Warnings(snap.Settings, s.Env.TelegramToken != ""),
+		"sites":      siteList(),
 	}
+}
+
+type siteJSON struct {
+	Name   string `json:"name"`
+	Label  string `json:"label"`
+	Domain string `json:"domain"`
+}
+
+// siteList names every site the Settings page can switch on; the domain is
+// shown next to the label, so it comes from the fixed table, not from env.
+func siteList() []siteJSON {
+	var out []siteJSON
+	for _, site := range pepper.Sites() {
+		domain := site.BaseURL
+		if u, err := url.Parse(site.BaseURL); err == nil {
+			domain = strings.TrimPrefix(u.Hostname(), "www.")
+		}
+		out = append(out, siteJSON{Name: site.Name, Label: settings.SourceLabel(site.Name), Domain: domain})
+	}
+	return out
 }
 
 func (s *Server) writeResult(w http.ResponseWriter, res settingsvc.Result) {
@@ -194,7 +218,7 @@ func (s *Server) dismissSuggestion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) categories(w http.ResponseWriter, r *http.Request) {
-	list, err := s.Store.Categories(r.Context(), nil)
+	list, err := s.Store.Categories(r.Context(), s.Settings.Current().Settings.EnabledSources())
 	if err != nil {
 		s.fail(w, err)
 		return

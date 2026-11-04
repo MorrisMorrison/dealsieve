@@ -301,3 +301,95 @@ func TestUndoHideAndJunk(t *testing.T) {
 		t.Errorf("undo unknown deal = %d, want 404", resp.StatusCode)
 	}
 }
+
+// enableHotukdeals turns the second site on and gives it one passed deal.
+func enableHotukdeals(t *testing.T, h *harness) {
+	t.Helper()
+	ctx := context.Background()
+	cur := h.svc.Current()
+	next := cur.Settings
+	next.Sources = maps.Clone(next.Sources)
+	src := next.Sources["hotukdeals"]
+	src.Enabled = true
+	next.Sources["hotukdeals"] = src
+	if _, err := h.svc.Save(ctx, cur.Version, next); err != nil {
+		t.Fatal(err)
+	}
+	at := h.api.Now().Add(-time.Hour)
+	d := source.Deal{ID: "hotukdeals:z", Source: "hotukdeals", URL: "https://www.hotukdeals.com/deals/x-z",
+		Title: "Example Kettle", Merchant: "Example Shop", Price: "9", Category: "Home", Temperature: intp(200)}
+	if _, err := h.st.UpsertDeal(ctx, d, source.FeedTrending, "example kettle", "shop|z", at); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.st.SaveVerdict(ctx, store.Verdict{DealID: d.ID, Decision: "pass", Score: 200, DecidedAt: at}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestListDealsSourceFilter(t *testing.T) {
+	h := newHarness(t)
+	enableHotukdeals(t, h)
+	var got struct {
+		Deals []struct {
+			ID          string `json:"id"`
+			Source      string `json:"source"`
+			SourceLabel string `json:"source_label"`
+		} `json:"deals"`
+		Counts map[string]int `json:"counts"`
+	}
+	_, body := h.do(t, "GET", "/api/deals", "")
+	if err := json.Unmarshal(body, &got); err != nil || len(got.Deals) != 2 {
+		t.Fatalf("all sources: %v %s", err, body)
+	}
+	for _, d := range got.Deals {
+		if d.Source == "" || d.SourceLabel != d.Source {
+			t.Errorf("deal %+v lacks source/label", d)
+		}
+	}
+	got.Deals = nil
+	_, body = h.do(t, "GET", "/api/deals?source=hotukdeals", "")
+	json.Unmarshal(body, &got)
+	if len(got.Deals) != 1 || got.Deals[0].ID != "hotukdeals:z" || got.Counts["passed"] != 1 {
+		t.Errorf("filtered = %+v counts %v", got.Deals, got.Counts)
+	}
+	resp, body := h.do(t, "GET", "/api/deals?source=dealabs", "")
+	if resp.StatusCode != 400 || !strings.Contains(string(body), `"unknown source"`) {
+		t.Errorf("disabled source = %d %s", resp.StatusCode, body)
+	}
+}
+
+func TestStatusListsEnabledSources(t *testing.T) {
+	h := newHarness(t)
+	enableHotukdeals(t, h)
+	_, body := h.do(t, "GET", "/api/status", "")
+	var got struct {
+		Feeds   []any `json:"feeds"`
+		Sources []struct{ Name, Label string }
+	}
+	if err := json.Unmarshal(body, &got); err != nil || len(got.Feeds) != 1 || len(got.Sources) != 2 ||
+		got.Sources[0].Name != "mydealz" || got.Sources[1].Name != "hotukdeals" || got.Sources[1].Label != "hotukdeals" {
+		t.Errorf("status = %v %s", err, body)
+	}
+}
+
+func TestCategoriesOnlyOfEnabledSources(t *testing.T) {
+	h := newHarness(t)
+	enableHotukdeals(t, h)
+	_, body := h.do(t, "GET", "/api/categories", "")
+	if !strings.Contains(string(body), `"Home"`) {
+		t.Fatalf("both enabled: %s", body)
+	}
+	cur := h.svc.Current()
+	next := cur.Settings
+	next.Sources = maps.Clone(next.Sources)
+	src := next.Sources["hotukdeals"]
+	src.Enabled = false
+	next.Sources["hotukdeals"] = src
+	if _, err := h.svc.Save(context.Background(), cur.Version, next); err != nil {
+		t.Fatal(err)
+	}
+	_, body = h.do(t, "GET", "/api/categories", "")
+	if strings.Contains(string(body), `"Home"`) || !strings.Contains(string(body), `"Elektronik"`) {
+		t.Errorf("only mydealz: %s", body)
+	}
+}
