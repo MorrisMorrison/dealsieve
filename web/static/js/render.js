@@ -1,5 +1,5 @@
 import { areaPoints, sparkPoints } from './sparkline.js';
-import { age, ago, clock, heat, sentence } from './format.js';
+import { age, ago, clock, heat, ratingMark, sentence } from './format.js';
 
 // Blocked deals whose first reason came from a click can be undone on the spot.
 const UNDO_BY_REASON = {
@@ -36,6 +36,16 @@ export function renderList(list, deals, selectedId, onSelect) {
     }
 
     item.querySelector('.title').textContent = deal.title;
+    const mark = ratingMark(deal.opinion?.rating);
+    if (mark) {
+      const badge = item.querySelector('.judge-mark');
+      badge.hidden = false;
+      badge.textContent = mark.symbol;
+      badge.classList.add(mark.className);
+      const label = `Judge: ${mark.label} — ${deal.opinion.reason}`;
+      badge.title = label;
+      badge.setAttribute('aria-label', label);
+    }
     item.querySelector('.price').textContent = deal.price;
     item.querySelector('.merchant').textContent = deal.merchant;
     const chip = item.querySelector('.chip');
@@ -92,6 +102,17 @@ export function renderDetail(panel, deal, { onAction, onUndo, onBack }) {
     why.append(li);
   });
   if (deal.reasons.length === 0) why.append(el('li', '', 'Passed every rule.'));
+
+  const mark = ratingMark(deal.opinion?.rating);
+  if (mark) {
+    const sec = node.querySelector('.judge');
+    sec.hidden = false;
+    const rating = sec.querySelector('.judge-rating');
+    rating.textContent = sentence(mark.label);
+    rating.classList.add(mark.className);
+    sec.querySelector('.judge-reason').textContent = deal.opinion.reason;
+    sec.querySelector('.judge-meta').textContent = `${deal.opinion.model} · an LLM’s opinion, it can be wrong`;
+  }
 
   node.querySelector('.category').textContent = deal.category || '—';
   const feeds = [deal.in_trending && FEED_LABELS.trending, deal.in_new && FEED_LABELS.new].filter(Boolean);

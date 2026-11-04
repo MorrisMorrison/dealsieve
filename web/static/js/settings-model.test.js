@@ -62,3 +62,11 @@ test('TIMEZONES offers common zones', () => {
   assert.ok(TIMEZONES.includes('Europe/Berlin'));
   assert.ok(TIMEZONES.includes('UTC'));
 });
+
+test('changeCount counts a judge change once', () => {
+  const saved = { ...base, judge: { enabled: false, model: '', daily_limit: 50, instructions: '' } };
+  const draft = clone(saved);
+  draft.judge.enabled = true;
+  draft.judge.model = 'example/model';
+  assert.equal(changeCount(saved, draft), 1);
+});
