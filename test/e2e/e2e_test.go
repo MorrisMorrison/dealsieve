@@ -29,6 +29,10 @@ type deal struct {
 	Source  string   `json:"source"`
 	Title   string   `json:"title"`
 	Reasons []string `json:"reasons"`
+	Opinion *struct {
+		Rating string `json:"rating"`
+		Reason string `json:"reason"`
+	} `json:"opinion"`
 }
 
 func TestEndToEnd(t *testing.T) {
@@ -69,6 +73,26 @@ func TestEndToEnd(t *testing.T) {
 	}))
 	defer ntfy.Close()
 
+	// Fake chat-completions upstream for the judge.
+	var judgeModels, judgeAuth []string
+	judge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/chat/completions" {
+			http.NotFound(w, r)
+			return
+		}
+		var req struct {
+			Model string `json:"model"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		mu.Lock()
+		judgeModels = append(judgeModels, req.Model)
+		judgeAuth = append(judgeAuth, r.Header.Get("Authorization"))
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"choices":[{"message":{"content":"{\"rating\":\"bad\",\"reason\":\"Fees add about €70.\"}"}}]}`))
+	}))
+	defer judge.Close()
+
 	dir := t.TempDir()
 	// Settings must exist before the first poll: re-checks never notify, so
 	// deals that arrive earlier couldn't trigger the push.
@@ -98,6 +122,8 @@ func TestEndToEnd(t *testing.T) {
 		"DEALSIEVE_DATA_DIR="+dataDir,
 		"DEALSIEVE_LISTEN="+listen,
 		"DEALSIEVE_MYDEALZ_URL="+feeds.URL,
+		"DEALSIEVE_JUDGE_URL="+judge.URL+"/v1",
+		"DEALSIEVE_JUDGE_API_KEY=",
 		"DEALSIEVE_HOTUKDEALS_URL="+hot.URL,
 	)
 	var logs bytes.Buffer
@@ -165,6 +191,7 @@ func TestEndToEnd(t *testing.T) {
 	json.NewDecoder(resp.Body).Decode(&cur)
 	resp.Body.Close()
 	cur.Settings["rules"].(map[string]any)["muted_merchants"] = []string{"Example Shop"}
+	cur.Settings["judge"] = map[string]any{"enabled": true, "model": "example/model", "daily_limit": 50, "instructions": ""}
 	put, _ := json.Marshal(map[string]any{"version": cur.Version, "settings": cur.Settings})
 	req, _ := http.NewRequest(http.MethodPut, base+"/api/settings", bytes.NewReader(put))
 	resp, err = http.DefaultClient.Do(req)
@@ -184,6 +211,21 @@ func TestEndToEnd(t *testing.T) {
 	if got := getDeals(base, "watchlist"); len(got) != 0 {
 		t.Errorf("watchlist after muting the shop = %+v", got)
 	}
+
+	// The same save enabled the judge, which annotates passed deals.
+	waitForWithin(t, 30*time.Second, "the judge's opinion", func() bool {
+		for _, d := range getDeals(base, "passed") {
+			if d.Opinion != nil && d.Opinion.Rating == "bad" && d.Opinion.Reason == "Fees add about €70." {
+				return true
+			}
+		}
+		return false
+	})
+	mu.Lock()
+	if len(judgeModels) == 0 || judgeModels[0] != "example/model" || judgeAuth[0] != "" {
+		t.Errorf("judge saw models %v, auth %q", judgeModels, judgeAuth)
+	}
+	mu.Unlock()
 
 	// A second site is turned on live and its deals show up with their source
 	// (the shop mute from above is lifted so its fixture deal can pass).
@@ -276,7 +318,12 @@ func ids(ds []deal) string {
 
 func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
+	waitForWithin(t, 20*time.Second, what, cond)
+}
+
+func waitForWithin(t *testing.T, d time.Duration, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
 		if cond() {
 			return

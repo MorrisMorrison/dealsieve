@@ -181,16 +181,25 @@ func (r *Runner) compose(ctx context.Context, ch string, s settings.Settings, la
 	for _, rec := range append(hits, top...) {
 		ids = append(ids, rec.ID)
 	}
-	return Compose(items(hits, len(sources) > 1), items(top, len(sources) > 1), r.Env.PublicURL), ids, nil
+	ops, err := r.Store.Opinions(ctx, ids)
+	if err != nil {
+		return notify.Message{}, nil, err
+	}
+	multi := len(sources) > 1
+	return Compose(items(hits, ops, multi), items(top, ops, multi), r.Env.PublicURL), ids, nil
 }
 
-// items labels each deal with its site only when several sources are on.
-func items(recs []store.DealRecord, multi bool) []Item {
+// items adds the judge's opinion and, only when several sources are on, the
+// deal's site.
+func items(recs []store.DealRecord, ops map[string]store.OpinionRecord, multi bool) []Item {
 	out := make([]Item, len(recs))
 	for i, rec := range recs {
 		out[i] = Item{Title: rec.Title, URL: rec.URL, Price: rec.Price, Temperature: rec.Temperature}
 		if multi {
 			out[i].Source = settings.SourceLabel(rec.Source)
+		}
+		if o, ok := ops[rec.ID]; ok {
+			out[i].Opinion = o.Rating + ": " + o.Reason
 		}
 	}
 	return out

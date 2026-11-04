@@ -90,7 +90,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-button, input, select { font: inherit; color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .num { font-variant-numeric: tabular-nums; }
@@ -137,6 +137,18 @@ button { cursor: pointer; }
 .chip { display: inline-flex; align-items: center; font-size: 11.5px; padding: 0 8px; border-radius: 999px; white-space: nowrap; }
 .chip:empty { display: none; }
 .chip.watch { background: var(--watch-soft); color: var(--watch); }
+/* The judge's opinion: a small marker in the list, the same colours in the detail panel. */
+.titleline { display: flex; align-items: baseline; min-width: 0; }
+.titleline .judge-mark { flex: none; }
+.judge-mark { display: inline-block; margin-left: 6px; min-width: 1.5em; padding: 0 5px; border-radius: 999px; font-size: 0.8em; font-weight: 600; text-align: center; background: var(--surface-2); color: var(--muted); vertical-align: 1px; }
+.judge-mark[hidden] { display: none; }
+.judge-mark.good, .judge-rating.good { color: var(--ok); }
+.judge-mark.bad, .judge-rating.bad { color: var(--block); }
+.judge-mark.bad { background: var(--block-soft); }
+.judge-mark.meh, .judge-rating.meh { color: var(--muted); }
+.judge-rating { font-weight: 600; }
+.judge-opinion { margin: 0 0 4px; font-size: 13px; }
+.judge-meta { margin: 0; }
 .chip.block { background: var(--block-soft); color: var(--block); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 
 /* Inbox + detail */

@@ -226,6 +226,59 @@ func TestNormalizeDigest(t *testing.T) {
 	}
 }
 
+func TestJudgeDefaultsAndValidate(t *testing.T) {
+	d := Defaults()
+	if d.Judge != (Judge{DailyLimit: 200}) {
+		t.Fatalf("defaults = %+v", d.Judge)
+	}
+	if errs := d.Validate(); len(errs) != 0 {
+		t.Fatalf("defaults invalid: %v", errs)
+	}
+	tests := []struct {
+		name  string
+		judge Judge
+		key   string
+	}{
+		{"enabled needs a model", Judge{Enabled: true, DailyLimit: 200}, "judge.model"},
+		{"model without spaces", Judge{Model: "a model", DailyLimit: 200}, "judge.model"},
+		{"model length", Judge{Model: strings.Repeat("m", 201), DailyLimit: 200}, "judge.model"},
+		{"limit too low", Judge{DailyLimit: 0}, "judge.daily_limit"},
+		{"limit too high", Judge{DailyLimit: 5001}, "judge.daily_limit"},
+		{"instructions length", Judge{DailyLimit: 1, Instructions: strings.Repeat("i", 501)}, "judge.instructions"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := Defaults()
+			s.Judge = tt.judge
+			if _, ok := s.Normalize().Validate()[tt.key]; !ok {
+				t.Errorf("want an error on %s, got %v", tt.key, s.Validate())
+			}
+		})
+	}
+	ok := Defaults()
+	ok.Judge = Judge{Enabled: true, Model: " example/model ", DailyLimit: 50, Instructions: " Answer in German. "}
+	n := ok.Normalize()
+	if n.Judge.Model != "example/model" || n.Judge.Instructions != "Answer in German." {
+		t.Errorf("normalize = %+v", n.Judge)
+	}
+	if errs := n.Validate(); len(errs) != 0 {
+		t.Errorf("valid judge rejected: %v", errs)
+	}
+	if errs := ValidateJudge(Judge{DailyLimit: 1}, true); errs["judge.model"] == "" {
+		t.Error("ValidateJudge(requireModel) accepted an empty model")
+	}
+}
+
+func TestDecodeOldDocumentGetsJudgeDefaults(t *testing.T) {
+	s, err := Decode([]byte(`{"watchlist":[]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Judge.DailyLimit != 200 || s.Judge.Enabled {
+		t.Fatalf("judge = %+v", s.Judge)
+	}
+}
+
 func TestSourcesDefaultsAndOldDocuments(t *testing.T) {
 	d := Defaults()
 	if got := d.EnabledSources(); !slices.Equal(got, []string{"mydealz"}) {

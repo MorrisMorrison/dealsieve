@@ -34,6 +34,7 @@ export function changeCount(saved, draft) {
   if (!same(saved.notify, draft.notify)) n++;
   if (!same(saved.suggestions, draft.suggestions)) n++;
   if (!same(saved.digest, draft.digest)) n++;
+  if (!same(saved.judge, draft.judge)) n++;
   return n;
 }
 

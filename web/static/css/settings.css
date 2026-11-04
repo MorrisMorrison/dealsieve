@@ -19,6 +19,7 @@ body.settings-page .help { color: var(--muted); font-size: 12.5px; }
 body.settings-page .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 body.settings-page input[type=text], body.settings-page input[type=number], body.settings-page select { height: 34px; padding: 0 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
 body.settings-page input[type=number] { width: 100px; }
+body.settings-page textarea { padding: 6px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; resize: vertical; }
 body.settings-page .suffix { color: var(--muted); }
 body.settings-page .btn { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 6px 12px; }
 body.settings-page .btn:hover { background: var(--surface-2); }

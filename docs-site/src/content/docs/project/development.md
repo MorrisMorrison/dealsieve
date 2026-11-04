@@ -33,6 +33,7 @@ Running it needs nothing but a data directory: it writes `./data/dealsieve.db` (
 | `internal/pipeline/` | Ingest, recompute and prune |
 | `internal/poller/` | One loop per feed with backoff and status |
 | `internal/notify/` | ntfy and Telegram notifiers |
+| `internal/judge/` | LLM judge: OpenAI-compatible client, prompt and reply parsing, the background runner |
 | `internal/store/` | SQLite and numbered migrations |
 | `internal/api/` | The JSON API, `/health` and the embedded page |
 | `web/` | The inbox page and the Settings page |

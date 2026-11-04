@@ -19,6 +19,7 @@ import (
 	"github.com/MorrisMorrison/dealsieve/internal/config"
 	"github.com/MorrisMorrison/dealsieve/internal/digest"
 	"github.com/MorrisMorrison/dealsieve/internal/fingerprint"
+	"github.com/MorrisMorrison/dealsieve/internal/judge"
 	"github.com/MorrisMorrison/dealsieve/internal/pipeline"
 	"github.com/MorrisMorrison/dealsieve/internal/poller"
 	"github.com/MorrisMorrison/dealsieve/internal/settings"
@@ -68,18 +69,31 @@ func run(ctx context.Context) error {
 	feedClient := &http.Client{Timeout: 30 * time.Second}
 	notifyClient := &http.Client{Timeout: 10 * time.Second}
 	pipe := &pipeline.Pipeline{Store: st, Env: env, HTTP: notifyClient, Now: time.Now, Log: log}
-	ua := "dealsieve/" + version.Version + " (+" + repoURL + ")"
+	// The judge exists before the settings service: Load applies settings,
+	// which wakes it. Its Settings closure only runs later.
+	var svc *settingsvc.Service
+	// No client timeout: each call is bounded by its context in judge.Runner.
+	judgeClient := &http.Client{}
+	userAgent := "dealsieve/" + version.Version + " (+" + repoURL + ")"
+	jr := &judge.Runner{
+		Store: st, Settings: func() settings.Settings { return svc.Current().Settings },
+		New: func(j settings.Judge) judge.Judge {
+			return &judge.OpenAI{BaseURL: env.JudgeURL, APIKey: env.JudgeAPIKey, Model: j.Model,
+				Instructions: j.Instructions, UserAgent: userAgent, Referer: repoURL, HTTP: judgeClient}
+		},
+		Now: time.Now, Log: log,
+	}
 	fetchers := map[string]source.Fetcher{}
 	for _, site := range pepper.Sites() {
-		fetchers[site.Name] = &pepper.Client{Site: site, BaseURL: env.SourceURLs[site.Name], UserAgent: ua, HTTP: feedClient, Log: log}
+		fetchers[site.Name] = &pepper.Client{Site: site, BaseURL: env.SourceURLs[site.Name], UserAgent: userAgent, HTTP: feedClient, Log: log}
 	}
 	pl := poller.New(fetchers, pipe, map[source.Feed]time.Duration{
 		source.FeedTrending: env.PollTrending,
 		source.FeedNew:      env.PollNew,
 	}, log)
-	// Created before the service so that loading the settings also picks the
-	// sources the poller runs.
-	svc := &settingsvc.Service{Store: st, Apply: applyAll{pipe, pl}, Now: time.Now}
+	// The poller exists before the service too, so that loading the settings
+	// also picks the sources it runs.
+	svc = &settingsvc.Service{Store: st, Apply: applyAll{pipe, pl, jr}, Now: time.Now}
 	if err := svc.Load(ctx); err != nil {
 		return fmt.Errorf("load settings: %w", err)
 	}
@@ -109,12 +123,13 @@ func run(ctx context.Context) error {
 		Env: env, HTTP: notifyClient, Now: time.Now, Log: log,
 	}
 	wg.Go(func() { dg.Run(ctx) })
+	wg.Go(func() { jr.Run(ctx) })
 
 	srv := &http.Server{
 		Addr: env.Listen,
 		Handler: (&api.Server{
 			Store: st, Recompute: pipe, Status: pl.Status,
-			Settings: svc, Digest: dg, Env: env, HTTP: notifyClient,
+			Settings: svc, Digest: dg, Judge: jr, Env: env, HTTP: notifyClient,
 			Assets: web.Assets, Log: log, Now: time.Now,
 		}).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
@@ -139,15 +154,18 @@ func run(ctx context.Context) error {
 	return srvErr
 }
 
-// applyAll puts settings into effect in the pipeline and the poller.
+// applyAll puts settings into effect in the pipeline and the poller (which
+// sources it runs) and lets the judge tick now.
 type applyAll struct {
 	*pipeline.Pipeline
 	poller *poller.Poller
+	judge  *judge.Runner
 }
 
 func (a applyAll) ApplySettings(s settings.Settings) {
 	a.Pipeline.ApplySettings(s)
 	a.poller.SetSources(s.EnabledSources())
+	a.judge.Wake()
 }
 
 func pruneLoop(ctx context.Context, pipe *pipeline.Pipeline, log *slog.Logger) {

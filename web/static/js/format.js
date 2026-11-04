@@ -39,6 +39,14 @@ export function sentence(text) {
   return text ? text[0].toUpperCase() + text.slice(1) : '';
 }
 
+const MARKS = { good: '✓', meh: '~', bad: '!' };
+
+// The judge's rating as a small marker; null when there is none.
+export function ratingMark(rating) {
+  if (!Object.hasOwn(MARKS, rating)) return null;
+  return { symbol: MARKS[rating], label: rating, className: rating };
+}
+
 function minutesSince(iso, now) {
   const t = iso ? Date.parse(iso) : NaN;
   if (Number.isNaN(t)) return null;

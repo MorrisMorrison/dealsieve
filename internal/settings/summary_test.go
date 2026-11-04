@@ -75,6 +75,22 @@ func TestSummarizeDigest(t *testing.T) {
 	}
 }
 
+func TestSummarizeJudge(t *testing.T) {
+	prev := Defaults()
+	next := Defaults()
+	next.Judge = Judge{Enabled: true, Model: "example/model", DailyLimit: 100, Instructions: "x"}
+	got := Summarize(prev, next)
+	want := []string{"LLM judge on", `Judge model "example/model"`, "Judge daily limit 200 → 100", "Changed judge instructions"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("summary = %q, want %q", got, want)
+	}
+	off := next
+	off.Judge.Enabled = false
+	if got := Summarize(next, off); !slices.Equal(got, []string{"LLM judge off"}) {
+		t.Fatalf("off = %q", got)
+	}
+}
+
 func TestSummarizeSources(t *testing.T) {
 	prev := Defaults()
 	next := Defaults()

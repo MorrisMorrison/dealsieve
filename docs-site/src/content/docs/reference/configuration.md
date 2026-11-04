@@ -80,6 +80,19 @@ One message a day per channel with the deals that passed, were active since the 
 
 **Send test digest** sends a digest now, using the saved settings (not unsaved edits). It does not count as the day's digest and doesn't mark any deal as sent, so the scheduled one still goes out with the same deals.
 
+### LLM judge
+
+An optional model opinion on deals that passed; see [LLM judge](/dealsieve/guide/llm-judge/). The server address and key are environment variables (below).
+
+| Setting | Default | Validation |
+|---|---|---|
+| Enabled | off | |
+| Model | empty | Required when enabled. No spaces, at most 200 characters. |
+| Daily limit | `200` | 1 to 5000. Calls per rolling 24 hours; failed calls count. |
+| Instructions | empty | At most 500 characters. Appended to the prompt; can set the reply language. |
+
+**Test judge** judges a made-up sample deal with the values in the form (unsaved edits included). It does not count toward the daily limit.
+
 ### Suggestions
 
 | Setting | Default | Validation |
@@ -113,6 +126,9 @@ Every save is stored as a version with a summary of what changed (for example `A
 | `DEALSIEVE_CHOLLOMETRO_URL` | `https://www.chollometro.com` | Feed host (for tests or a mirror) |
 | `DEALSIEVE_PEPPERPL_URL` | `https://www.pepper.pl` | Feed host (for tests or a mirror) |
 | `DEALSIEVE_PUBLIC_URL` | unset | Optional. The address you open dealsieve at, as an absolute http(s) URL, e.g. `https://deals.example.com`. The daily digest uses it as its link to the inbox (the click target of the ntfy message, the last line of the Telegram message). |
+
+| `DEALSIEVE_JUDGE_URL` | `https://openrouter.ai/api/v1` | Base URL of an OpenAI-compatible chat-completions API for the [LLM judge](/dealsieve/guide/llm-judge/); requests go to `<url>/chat/completions`. An environment variable on purpose: the page has no login, so the key can't be redirected to another host from the page. |
+| `DEALSIEVE_JUDGE_API_KEY` | | Optional bearer key for the judge's server. Never stored, logged or returned; the page only shows whether one is set. |
 
 Secrets live only in environment variables, never in the database or on the page. Invalid values (an interval below one minute, a log format other than `text` or `json`) stop the start-up with a list of problems.
 

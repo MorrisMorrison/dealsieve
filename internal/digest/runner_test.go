@@ -226,6 +226,26 @@ func TestTickDoesNotRepeatADealStillActive(t *testing.T) {
 	}
 }
 
+func TestTickShowsOnlyJudgedDealsOpinions(t *testing.T) {
+	h := newRunner(t)
+	h.seed(t, "1", 300, h.now.Add(-2*time.Hour), false)
+	h.seed(t, "2", 200, h.now.Add(-time.Hour), false)
+	if err := h.st.SaveOpinion(ctx, store.OpinionRecord{DealID: "mydealz:1", Status: store.OpinionOK, Rating: "meh", Reason: "fine price", Model: "m", JudgedAt: *h.now}); err != nil {
+		t.Fatal(err)
+	}
+	h.r.Tick(ctx)
+	if len(h.phone.sent) != 1 {
+		t.Fatalf("sent %d", len(h.phone.sent))
+	}
+	body := h.phone.sent[0].Body
+	if !strings.Contains(body, "Deal 1 · 9€ · 300°\n   ↳ meh: fine price") {
+		t.Errorf("judged deal has no opinion line:\n%s", body)
+	}
+	if n := strings.Count(body, "↳"); n != 1 {
+		t.Errorf("%d opinion lines, want 1:\n%s", n, body)
+	}
+}
+
 func TestSendTestDoesNotMarkDealsSent(t *testing.T) {
 	h := newRunner(t)
 	h.seed(t, "1", 300, h.now.Add(-time.Hour), false)

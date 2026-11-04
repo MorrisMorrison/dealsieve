@@ -14,7 +14,7 @@ func TestDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Env{DataDir: "./data", Listen: ":8080", LogFormat: "text",
+	want := Env{DataDir: "./data", Listen: ":8080", LogFormat: "text", JudgeURL: "https://openrouter.ai/api/v1",
 		PollTrending: 5 * time.Minute, PollNew: 2 * time.Minute}
 	e.SourceURLs = nil
 	if !reflect.DeepEqual(e, want) {
@@ -31,7 +31,7 @@ func TestOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Env{DataDir: "/data", Listen: "127.0.0.1:9000", LogFormat: "json", TelegramToken: "tok", NtfyToken: "nt",
+	want := Env{DataDir: "/data", Listen: "127.0.0.1:9000", LogFormat: "json", TelegramToken: "tok", NtfyToken: "nt", JudgeURL: "https://openrouter.ai/api/v1",
 		PollTrending: 10 * time.Minute, PollNew: time.Minute}
 	if e.SourceURLs["mydealz"] != "http://127.0.0.1:1" {
 		t.Errorf("mydealz URL = %q", e.SourceURLs["mydealz"])
@@ -76,6 +76,26 @@ func TestPublicURL(t *testing.T) {
 		if _, err := FromEnv(env(bad)); err == nil {
 			t.Errorf("%q accepted", bad)
 		}
+	}
+}
+
+func TestJudgeEnv(t *testing.T) {
+	e, err := FromEnv(func(string) string { return "" })
+	if err != nil || e.JudgeURL != "https://openrouter.ai/api/v1" || e.JudgeAPIKey != "" {
+		t.Fatalf("defaults = %q %q %v", e.JudgeURL, e.JudgeAPIKey, err)
+	}
+	env := map[string]string{"DEALSIEVE_JUDGE_URL": "http://llm.example.test:11434/v1/", "DEALSIEVE_JUDGE_API_KEY": "k"}
+	e, err = FromEnv(func(k string) string { return env[k] })
+	if err != nil || e.JudgeURL != "http://llm.example.test:11434/v1" || e.JudgeAPIKey != "k" {
+		t.Fatalf("set = %q %q %v", e.JudgeURL, e.JudgeAPIKey, err)
+	}
+	env["DEALSIEVE_JUDGE_API_KEY"] = " k\n"
+	if e, err := FromEnv(func(k string) string { return env[k] }); err != nil || e.JudgeAPIKey != "k" {
+		t.Fatalf("untrimmed key = %q %v", e.JudgeAPIKey, err)
+	}
+	env["DEALSIEVE_JUDGE_URL"] = "llm.example.test"
+	if _, err := FromEnv(func(k string) string { return env[k] }); err == nil {
+		t.Fatal("relative URL accepted")
 	}
 }
 

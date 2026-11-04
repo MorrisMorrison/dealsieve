@@ -1,7 +1,8 @@
 import {
   applySuggestion, dismissSuggestion, getCategories, getHistory, getSettings, getSuggestions,
-  putSettings, testChannel, testDigest, undoSettings,
+  putSettings, testChannel, testDigest, testJudge, undoSettings,
 } from './api.js';
+import { sentence } from './format.js';
 import { initTheme } from './theme.js';
 import { addTo, changeCount, clone, nextChannelName, removeFrom, TIMEZONES, withMinTemperature } from './settings-model.js';
 
@@ -24,7 +25,7 @@ function h(tag, props = {}, ...kids) {
 }
 
 const st = {
-  saved: null, draft: null, version: 0, warnings: {},
+  saved: null, draft: null, version: 0, warnings: {}, judgeEnv: {},
   suggestions: [], history: [], categories: [],
   sites: [], errors: {}, addingChannel: false, stale: false,
 };
@@ -89,10 +90,10 @@ function select(options, value, onChange, label) {
     options.map(([v, text, disabled]) => h('option', { value: v, textContent: text, disabled: !!disabled })));
 }
 
-function numberInput(value, onInput, { min, label, width, pred } = {}) {
+function numberInput(value, onInput, { min, max, label, width, pred } = {}) {
   const input = h('input', {
     type: 'number', value: String(value),
-    attrs: { 'aria-label': label || '', step: 1, ...(min !== undefined ? { min } : {}) },
+    attrs: { 'aria-label': label || '', step: 1, ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) },
     on: {
       input: (e) => {
         if (pred) clearErrors(pred, input);
@@ -529,6 +530,67 @@ function digestBlock() {
     h('div', { className: 'row' }, test, h('span', { className: 'help', textContent: 'Uses the saved settings.' }), status));
 }
 
+function judgeBlock() {
+  const j = st.draft.judge;
+  const pred = under('judge');
+  const bad = (field) => `judge.${field}` in st.errors;
+  const env = st.judgeEnv;
+  const status = h('span', { className: 'status-ok', hidden: true });
+  const test = h('button', {
+    type: 'button', className: 'btn small', textContent: 'Test judge',
+    on: {
+      click: async () => {
+        test.disabled = true;
+        test.textContent = 'Testing…';
+        status.hidden = true;
+        let res;
+        try {
+          res = await testJudge(st.draft.judge);
+        } catch (err) {
+          const fieldErrs = err.body?.errors;
+          if (fieldErrs) {
+            // Same shape as a failed save: show each message under its field.
+            Object.assign(st.errors, fieldErrs);
+            touch('notifications');
+            return;
+          }
+          res = { ok: false, error: err.message };
+        }
+        test.textContent = 'Test judge';
+        test.disabled = false;
+        status.hidden = false;
+        status.className = res.ok ? 'status-ok' : 'status-err';
+        status.textContent = res.ok ? `${sentence(res.rating)}: ${sentence(res.reason)}` : `Failed: ${res.error || 'unknown error'}`;
+      },
+    },
+  });
+  return h('div', { className: 'field' },
+    h('span', { className: 'label', textContent: 'LLM judge' }),
+    h('p', { className: 'help', textContent: 'Asks a language model for a one-line opinion on each deal that passed your rules, for example hidden fees. Opinions show on the deal and in the digest; they never block a deal or send a notification. Each passed deal is judged once; the daily limit caps how many requests are made.' }),
+    h('label', { className: 'row' },
+      h('input', { type: 'checkbox', checked: j.enabled, on: { change: (e) => { j.enabled = e.target.checked; clearErrors(pred); updateBar(); } } }),
+      ' Ask an LLM about passed deals'),
+    h('div', { className: 'row' },
+      h('span', { className: 'kw', textContent: 'Model' }),
+      h('input', {
+        type: 'text', value: j.model, className: bad('model') ? 'invalid' : '', style: 'width:18em',
+        placeholder: 'e.g. a model id from your provider', attrs: { 'aria-label': 'Judge model' },
+        on: { input: (e) => { j.model = e.target.value; clearErrors(exact('judge.model'), e.target); updateBar(); } },
+      }),
+      h('span', { className: 'kw', textContent: 'Requests per day' }),
+      numberInput(j.daily_limit, (v) => { j.daily_limit = v; }, { min: 1, max: 5000, label: 'Judge requests per day', width: '80px', pred: exact('judge.daily_limit') })),
+    h('div', {},
+      h('label', { className: 'kw', textContent: 'Notes for the judge' }),
+      h('textarea', {
+        value: j.instructions, rows: 2, maxLength: 500, className: bad('instructions') ? 'invalid' : '', style: 'width:100%',
+        placeholder: 'e.g. I fly from Berlin. Answer in German.', attrs: { 'aria-label': 'Notes for the judge' },
+        on: { input: (e) => { j.instructions = e.target.value; clearErrors(exact('judge.instructions'), e.target); updateBar(); } },
+      })),
+    h('p', { className: 'help', textContent: `Requests go to ${env.url || 'the configured server'}. ${env.key_set ? 'API key set.' : 'No API key set (fine for a local server).'}` }),
+    errorNodes(pred),
+    h('div', { className: 'row' }, test, h('span', { className: 'help', textContent: 'Uses the values above, saved or not.' }), status));
+}
+
 function renderNotifications() {
   const names = Object.keys(st.draft.channels);
   return [
@@ -544,6 +606,7 @@ function renderNotifications() {
           on: { click: () => { st.draft.notify.push({ when: 'watchlist', channels: [] }); touch('notifications'); } },
         })))),
     digestBlock(),
+    judgeBlock(),
   ];
 }
 
@@ -594,6 +657,7 @@ function adopt(doc) {
   st.draft = clone(doc.settings);
   st.version = doc.version;
   st.warnings = doc.warnings || {};
+  st.judgeEnv = doc.judge_env || {};
   st.errors = {};
   st.stale = false;
   hideBanner();

@@ -30,6 +30,7 @@ func Summarize(prev, next Settings) []string {
 		p.Top != n.Top || !slices.Equal(p.Channels, n.Channels) {
 		out = append(out, digestSummary(n))
 	}
+	out = append(out, judgeDiff(prev.Judge, next.Judge)...)
 	out = append(out, sourcesDiff(prev, next)...)
 	if p, n := prev.Suggestions, next.Suggestions; p != n {
 		out = append(out, fmt.Sprintf("Suggestions: %d in %d days → %d in %d days", p.MinCount, p.WindowDays, n.MinCount, n.WindowDays))
@@ -136,4 +137,25 @@ func sortedKeys[V any](a, b map[string]V) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func judgeDiff(p, n Judge) []string {
+	var out []string
+	if p.Enabled != n.Enabled {
+		if n.Enabled {
+			out = append(out, "LLM judge on")
+		} else {
+			out = append(out, "LLM judge off")
+		}
+	}
+	if p.Model != n.Model {
+		out = append(out, fmt.Sprintf("Judge model %q", n.Model))
+	}
+	if p.DailyLimit != n.DailyLimit {
+		out = append(out, fmt.Sprintf("Judge daily limit %d → %d", p.DailyLimit, n.DailyLimit))
+	}
+	if p.Instructions != n.Instructions {
+		out = append(out, "Changed judge instructions")
+	}
+	return out
 }

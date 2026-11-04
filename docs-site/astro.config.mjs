@@ -26,7 +26,7 @@ export default defineConfig({
 			// http://localhost:8080, so local links are allowed.
 			plugins: [starlightLinksValidator({ errorOnLocalLinks: false })],
 			sidebar: [
-				{ label: 'Guide', items: ['guide/how-it-works', 'guide/install', 'guide/notifications'] },
+				{ label: 'Guide', items: ['guide/how-it-works', 'guide/install', 'guide/notifications', 'guide/llm-judge'] },
 				{ label: 'Reference', items: ['reference/configuration', 'reference/api'] },
 				{ label: 'Project', items: ['project/development'] }
 			]
