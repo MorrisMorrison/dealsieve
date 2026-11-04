@@ -6,6 +6,7 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -100,21 +101,84 @@ func TestDealsSeenSince(t *testing.T) {
 
 func TestCountRecurrence(t *testing.T) {
 	s := openTest(t)
-	mustUpsert(t, s, deal("a", nil), source.FeedTrending, "shop|x", t0.Add(-100*24*time.Hour))
-	mustUpsert(t, s, deal("b", nil), source.FeedTrending, "shop|x", t0.Add(-10*24*time.Hour))
-	mustUpsert(t, s, deal("c", nil), source.FeedTrending, "shop|x", t0.Add(-24*time.Hour))
+	day := 24 * time.Hour
+	mustUpsert(t, s, deal("a", nil), source.FeedTrending, "shop|x", t0.Add(-100*day))
+	mustUpsert(t, s, deal("b", nil), source.FeedTrending, "shop|x", t0.Add(-10*day))
+	mustUpsert(t, s, deal("c", nil), source.FeedTrending, "shop|x", t0.Add(-day))
 	mustUpsert(t, s, deal("other", nil), source.FeedTrending, "shop|y", t0)
 	mustUpsert(t, s, deal("me", nil), source.FeedTrending, "shop|x", t0)
+	mustUpsert(t, s, deal("later", nil), source.FeedTrending, "shop|x", t0.Add(day))
 
-	n, last, err := s.CountRecurrence(ctx, "shop|x", "mydealz:me", t0.Add(-90*24*time.Hour))
+	// Only earlier deals count, within the window that ends at this deal.
+	n, last, err := s.CountRecurrence(ctx, "shop|x", "mydealz:me", t0, 90*day)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 2 || !last.Equal(t0.Add(-24*time.Hour)) {
-		t.Errorf("count %d, last %v; want 2 and %v", n, last, t0.Add(-24*time.Hour))
+	if n != 2 || !last.Equal(t0.Add(-day)) {
+		t.Errorf("count %d, last %v; want 2 and %v", n, last, t0.Add(-day))
 	}
-	if n, _, _ := s.CountRecurrence(ctx, "shop|none", "x", t0.Add(-90*24*time.Hour)); n != 0 {
+	// An older deal keeps its count when re-posts arrive after it.
+	if n, _, _ := s.CountRecurrence(ctx, "shop|x", "mydealz:b", t0.Add(-10*day), 90*day); n != 1 {
+		t.Errorf("count for b = %d, want 1 (only a)", n)
+	}
+	if n, _, _ := s.CountRecurrence(ctx, "shop|none", "x", t0, 90*day); n != 0 {
 		t.Errorf("count = %d, want 0", n)
+	}
+}
+
+func TestCountRecurrenceSamePollCountsOnce(t *testing.T) {
+	s := openTest(t)
+	mustUpsert(t, s, deal("1", nil), source.FeedTrending, "shop|x", t0)
+	mustUpsert(t, s, deal("2", nil), source.FeedTrending, "shop|x", t0)
+	n1, _, _ := s.CountRecurrence(ctx, "shop|x", "mydealz:1", t0, time.Hour)
+	n2, _, _ := s.CountRecurrence(ctx, "shop|x", "mydealz:2", t0, time.Hour)
+	if n1+n2 != 1 {
+		t.Errorf("counts %d and %d; want one of them to see the other", n1, n2)
+	}
+}
+
+func TestRekey(t *testing.T) {
+	s := openTest(t)
+	a := deal("a", nil)
+	a.Title = "Galaxy S24"
+	b := deal("b", nil)
+	b.Title = "Galaxy S25"
+	mustUpsert(t, s, a, source.FeedTrending, "shop|galaxy", t0)
+	mustUpsert(t, s, b, source.FeedTrending, "shop|galaxy", t0)
+	for _, v := range []string{"shop|galaxy", "shop|gone"} {
+		if _, err := s.AddAction(ctx, ActionJunk, v, t0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.AddAction(ctx, ActionHide, "mydealz:a", t0); err != nil {
+		t.Fatal(err)
+	}
+	key := func(merchant, title string) (string, string) {
+		return title, strings.ToLower(merchant + "|" + title)
+	}
+
+	n, err := s.Rekey(ctx, key)
+	if err != nil || n != 2 {
+		t.Fatalf("Rekey = %d, %v; want 2 deals changed", n, err)
+	}
+	if rec, _ := s.GetDeal(ctx, "mydealz:a"); rec.Fingerprint != "shop|galaxy s24" || rec.TitleClean != "Galaxy S24" {
+		t.Errorf("deal a = %+v", rec)
+	}
+	// A junk click on the old key now covers every deal that had it; one
+	// whose key no deal has any more stays as it was.
+	var junk []string
+	list, _ := s.Actions(ctx)
+	for _, a := range list {
+		if a.Kind == ActionJunk {
+			junk = append(junk, a.Value)
+		}
+	}
+	slices.Sort(junk)
+	if want := []string{"shop|galaxy s24", "shop|galaxy s25", "shop|gone"}; !slices.Equal(junk, want) {
+		t.Errorf("junk = %v, want %v", junk, want)
+	}
+	if n, err := s.Rekey(ctx, key); n != 0 || err != nil {
+		t.Errorf("second Rekey = %d, %v; want 0", n, err)
 	}
 }
 

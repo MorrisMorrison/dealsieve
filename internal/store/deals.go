@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -110,17 +112,109 @@ func (s *Store) DealsSeenSince(ctx context.Context, since time.Time) ([]DealReco
 	return out, rows.Err()
 }
 
-// CountRecurrence counts other deals with the same fingerprint first seen
-// since since, and returns when the latest of them was first seen.
-func (s *Store) CountRecurrence(ctx context.Context, fingerprint, excludeID string, since time.Time) (int, time.Time, error) {
+// CountRecurrence counts the deals with this fingerprint first seen before
+// the deal id (first seen at firstSeen), within window before it, and returns
+// when the latest of them was first seen. Deals first seen in the same poll
+// are ordered by id, so of two identical ones only the second counts the
+// first. Looking only backwards keeps a verdict stable: re-posts that arrive
+// later never turn an earlier deal into a recurring one.
+func (s *Store) CountRecurrence(ctx context.Context, fingerprint, id string, firstSeen time.Time, window time.Duration) (int, time.Time, error) {
 	var n int
 	var last sql.NullInt64
+	at := firstSeen.Unix()
 	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*), MAX(first_seen) FROM deals
-		WHERE fingerprint = ? AND id <> ? AND first_seen >= ?`, fingerprint, excludeID, since.Unix()).Scan(&n, &last)
+		WHERE fingerprint = ? AND first_seen >= ? AND (first_seen < ? OR (first_seen = ? AND id < ?))`,
+		fingerprint, firstSeen.Add(-window).Unix(), at, at, id).Scan(&n, &last)
 	if err != nil || !last.Valid {
 		return n, time.Time{}, err
 	}
 	return n, fromUnix(last.Int64), nil
+}
+
+// Rekey recomputes every deal's cleaned title and fingerprint with key and
+// moves junk actions to the new fingerprints: a junk click on an old key is
+// replaced by one per new key of the deals that had it. A junk action whose
+// key no stored deal has is left alone. It returns how many deals changed;
+// with unchanged fingerprint rules it changes nothing.
+func (s *Store) Rekey(ctx context.Context, key func(merchant, title string) (clean, fingerprint string)) (int, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	type change struct{ id, clean, fp string }
+	var changes []change
+	moved := map[string]map[string]bool{} // old fingerprint -> new fingerprints
+	rows, err := tx.QueryContext(ctx, `SELECT id, title, merchant, title_clean, fingerprint FROM deals`)
+	if err != nil {
+		return 0, err
+	}
+	for rows.Next() {
+		var id, title, merchant, oldClean, oldFP string
+		if err := rows.Scan(&id, &title, &merchant, &oldClean, &oldFP); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		clean, fp := key(merchant, title)
+		if moved[oldFP] == nil {
+			moved[oldFP] = map[string]bool{}
+		}
+		moved[oldFP][fp] = true
+		if clean != oldClean || fp != oldFP {
+			changes = append(changes, change{id, clean, fp})
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if len(changes) == 0 {
+		return 0, nil
+	}
+	for _, c := range changes {
+		if _, err := tx.ExecContext(ctx, `UPDATE deals SET title_clean = ?, fingerprint = ? WHERE id = ?`, c.clean, c.fp, c.id); err != nil {
+			return 0, err
+		}
+	}
+
+	type junk struct {
+		id      int64
+		value   string
+		created int64
+	}
+	var junks []junk
+	rows, err = tx.QueryContext(ctx, `SELECT id, value, created_at FROM actions WHERE kind = ?`, ActionJunk)
+	if err != nil {
+		return 0, err
+	}
+	for rows.Next() {
+		var j junk
+		if err := rows.Scan(&j.id, &j.value, &j.created); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		junks = append(junks, j)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	for _, j := range junks {
+		next := moved[j.value]
+		if len(next) == 0 || (len(next) == 1 && next[j.value]) {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM actions WHERE id = ?`, j.id); err != nil {
+			return 0, err
+		}
+		for _, fp := range slices.Sorted(maps.Keys(next)) {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO actions (kind, value, created_at) VALUES (?, ?, ?)`, ActionJunk, fp, j.created); err != nil {
+				return 0, err
+			}
+		}
+	}
+	return len(changes), tx.Commit()
 }
 
 // Temperatures returns each deal's snapshots, oldest first.

@@ -109,8 +109,8 @@ func (e *Engine) blockReason(d Deal, f Facts, title string, watchlistHit bool) (
 	if kw, ok := firstContained(title, e.blockKeywords); ok {
 		return "block keyword: " + kw, true
 	}
-	// A watchlist hit is explicit intent; fingerprints drop model numbers, so
-	// different products from one shop can share a key and look recurring.
+	// A watchlist hit is explicit intent; fingerprints drop plain numbers and sizes,
+	// so different products from one shop can still share a key and look recurring.
 	if f.Recurrence >= e.maxSeen && !watchlistHit {
 		return fmt.Sprintf("recurring: seen %d× before in %d days (last %s)",
 			f.Recurrence, int(e.window.Hours()/24), f.LastRecurrence.Format("2006-01-02")), true

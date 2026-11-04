@@ -14,7 +14,7 @@ dealsieve is a small self-hosted filter for deal feeds. One Go binary polls a so
 | `internal/settingsvc/` | Saves, undoes and applies settings (versions, conflict check, swap into the pipeline, recompute) and serves suggestions |
 | `internal/suggest/` | Pure: mute suggestions from Hide/Junk clicks, settings and dismissals |
 | `internal/source/` | `Deal`, `Feed` and the `Fetcher` interface; `source/mydealz/` is the RSS adapter (fixtures in `testdata/`) |
-| `internal/fingerprint/` | `CleanTitle` + `Key`: merchant plus sorted distinct title words without numbers, so re-posts of the same offer share a key |
+| `internal/fingerprint/` | `CleanTitle` + `Key`: merchant plus sorted distinct title words without plain numbers or sizes (`16gb`, `2x`); model codes like `s24` stay. Re-posts of the same offer share a key |
 | `internal/rules/` | The rule engine: `Evaluate(Deal, Facts) Result` — pure, no I/O |
 | `internal/pipeline/` | Ingest (store → evaluate → save verdict → notify), `RecomputeRecent` after a user action, `Prune`; serialised by one mutex |
 | `internal/poller/` | One loop per feed with its own interval, backoff on failures (capped at 30 min), per-feed status for the page |
@@ -53,7 +53,8 @@ Running it needs nothing but a data dir (it writes `./data/dealsieve.db`, git-ig
 - **Go:** standard library first (`net/http` with method patterns, `log/slog`, `database/sql`); the only direct dependency is `modernc.org/sqlite`. No web framework. Ask before adding a dependency. Wrap errors with `%w`. Log a constant message plus key/value attrs. Comments are sparse and explain *why*.
 - **Rule order is the contract.** `rules.blockReason` checks, in order: hidden → muted category → muted merchant → block keyword → recurring → junk fingerprint → (watchlist hits stop here) → too cold → new-only. The first block reason wins and is listed first in `Reasons`. Watchlist hits get `+1000` score and are exempt from the recurrence and temperature rules on purpose. A passing deal also records pass reasons (temperature, recurrence) after the watchlist reason. A new rule needs a place in that order, a human-readable reason string, and a table test in `rules_test.go`.
 - **Keywords match the raw lowercased title**, not the cleaned one (cleaning drops numbers like `5080`).
-- **Fingerprints:** changing `CleanTitle`/`Key` changes every stored fingerprint's meaning (recurrence counts and junk actions are keyed by it). Treat it as a migration: say so in the PR and decide what happens to existing rows.
+- **Fingerprints:** changing `CleanTitle`/`Key` changes every stored fingerprint's meaning (recurrence counts and junk actions are keyed by it). Treat it as a migration: say so in the PR and decide what happens to existing rows. `Store.Rekey` runs at startup and re-keys deals and junk actions to the current rules.
+- **Recurrence only looks back:** `CountRecurrence` counts deals with the same fingerprint first seen *before* the deal (same-poll ties by id), inside the window ending at its own first sighting, so a recompute never turns an earlier pass into "recurring".
 - **Verdicts are recomputed** for the last 7 days after every action and after every settings change (and at startup). Recompute never notifies.
 - **Notifications:** at most one successful send per (deal, channel), up to 3 attempts, failed ones retried on later polls. Keep that bookkeeping in `notifications_sent`.
 - **Schema changes** go in a new `internal/store/migrations/NNN_*.sql`; never edit an applied migration.

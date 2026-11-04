@@ -20,15 +20,30 @@ var stopwords = map[string]bool{
 	"or": true, "the": true, "to": true, "with": true, "now": true,
 }
 
-// CleanTitle lowercases a title and drops numbers, punctuation, one-letter
-// words and stopwords.
+// units are what follows a number in sizes, counts and specs ("16gb", "2x",
+// "3er", "120hz"). Such tokens are dropped like plain numbers, so a re-post
+// in another size or pack still matches; other letter+digit tokens are model
+// codes ("s24", "rtx5080", "1000xm5") and stay.
+var units = map[string]bool{
+	"b": true, "kb": true, "mb": true, "gb": true, "tb": true,
+	"g": true, "mg": true, "kg": true, "l": true, "ml": true, "cl": true,
+	"m": true, "mm": true, "cm": true, "km": true, "zoll": true, "inch": true,
+	"w": true, "kw": true, "kwh": true, "v": true, "mah": true, "wh": true,
+	"hz": true, "khz": true, "mhz": true, "ghz": true, "k": true, "p": true, "fps": true,
+	"x": true, "er": true, "st": true, "stk": true, "tlg": true, "teilig": true, "fach": true,
+	"h": true, "min": true, "s": true, "d": true, "tage": true, "jahre": true, "monate": true,
+	"eur": true, "euro": true, "ct": true, "uhr": true, "ps": true, "pa": true, "lagig": true,
+}
+
+// CleanTitle lowercases a title and drops plain numbers, sizes like "16gb",
+// punctuation, one-letter words and stopwords. Model codes like "s24" stay.
 func CleanTitle(title string) string {
 	fields := strings.FieldsFunc(strings.ToLower(title), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 	})
 	words := fields[:0]
 	for _, w := range fields {
-		if len([]rune(w)) < 2 || stopwords[w] || strings.ContainsFunc(w, unicode.IsDigit) {
+		if len([]rune(w)) < 2 || stopwords[w] || isQuantity(w) {
 			continue
 		}
 		words = append(words, w)
@@ -45,4 +60,27 @@ func Key(merchant, cleanTitle string) string {
 	words := strings.Fields(cleanTitle)
 	slices.Sort(words)
 	return m + "|" + strings.Join(slices.Compact(words), " ")
+}
+
+// isQuantity reports whether w is a number, a unit on its own ("gb" in
+// "16 GB"), a number followed by a unit ("16gb", "2x") or a pack size like
+// "4x10".
+func isQuantity(w string) bool {
+	if units[w] {
+		return true
+	}
+	rest := strings.TrimLeftFunc(w, unicode.IsDigit)
+	if rest == w {
+		return false // starts with a letter: a word or a model code
+	}
+	if after, ok := strings.CutPrefix(rest, "x"); ok && after != "" && strings.TrimLeftFunc(after, unicode.IsDigit) == "" {
+		return true
+	}
+	return rest == "" || units[rest]
+}
+
+// Of returns a deal's cleaned title and its fingerprint key.
+func Of(merchant, title string) (clean, key string) {
+	clean = CleanTitle(title)
+	return clean, Key(merchant, clean)
 }
