@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/MorrisMorrison/dealsieve/internal/config"
+	"github.com/MorrisMorrison/dealsieve/internal/judge"
 	"github.com/MorrisMorrison/dealsieve/internal/poller"
 	"github.com/MorrisMorrison/dealsieve/internal/settings"
 	"github.com/MorrisMorrison/dealsieve/internal/settingsvc"
@@ -299,5 +300,80 @@ func TestUndoHideAndJunk(t *testing.T) {
 	}
 	if resp, _ := h.do(t, "POST", "/api/actions/undo", `{"kind":"junk","deal_id":"mydealz:404"}`); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("undo unknown deal = %d, want 404", resp.StatusCode)
+	}
+}
+
+type fakeJudgeRunner struct {
+	status judge.Status
+	got    settings.Judge
+	result judge.TestResult
+}
+
+func (f *fakeJudgeRunner) Status(context.Context) (judge.Status, error) { return f.status, nil }
+func (f *fakeJudgeRunner) Test(_ context.Context, j settings.Judge) judge.TestResult {
+	f.got = j
+	return f.result
+}
+
+func TestListDealsIncludesOpinion(t *testing.T) {
+	h := newHarness(t)
+	at := time.Date(2026, 11, 3, 11, 0, 0, 0, time.UTC)
+	if err := h.st.SaveOpinion(context.Background(), store.OpinionRecord{DealID: "mydealz:a", Status: "ok",
+		Rating: "bad", Reason: "Looks like a re-post.", Model: "example/model", JudgedAt: at}); err != nil {
+		t.Fatal(err)
+	}
+	_, body := h.do(t, "GET", "/api/deals", "")
+	var resp struct {
+		Deals []map[string]any `json:"deals"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		t.Fatal(err)
+	}
+	seen := 0
+	for _, d := range resp.Deals {
+		op, present := d["opinion"]
+		if !present {
+			t.Fatalf("deal %v has no opinion key", d["id"])
+		}
+		if d["id"] == "mydealz:a" {
+			m, ok := op.(map[string]any)
+			if !ok || m["rating"] != "bad" || m["reason"] != "Looks like a re-post." || m["model"] != "example/model" || m["judged_at"] == "" {
+				t.Errorf("opinion = %v", op)
+			}
+			seen++
+		} else if op != nil {
+			t.Errorf("deal %v opinion = %v, want null", d["id"], op)
+		}
+	}
+	if seen != 1 {
+		t.Fatalf("deal a seen %d times in %s", seen, body)
+	}
+}
+
+func TestStatusIncludesJudge(t *testing.T) {
+	h := newHarness(t)
+	h.api.Judge = &fakeJudgeRunner{status: judge.Status{Calls24h: 3, LastError: "HTTP 429"}}
+	h.api.Env = config.Env{JudgeURL: "https://llm.example.test/v1", JudgeAPIKey: "sk-test-secret"}
+	_, body := h.do(t, "GET", "/api/status", "")
+	if strings.Contains(string(body), "sk-test-secret") {
+		t.Fatalf("status leaks the key: %s", body)
+	}
+	var resp struct {
+		Judge map[string]any `json:"judge"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		t.Fatal(err)
+	}
+	j := resp.Judge
+	if j["calls_24h"] != float64(3) || j["key_set"] != true || j["url"] != "https://llm.example.test/v1" || j["last_error"] != "HTTP 429" {
+		t.Errorf("judge = %v", j)
+	}
+}
+
+func TestStatusWithoutJudgeRunner(t *testing.T) {
+	h := newHarness(t)
+	resp, body := h.do(t, "GET", "/api/status", "")
+	if resp.StatusCode != 200 || !strings.Contains(string(body), `"judge"`) {
+		t.Errorf("status %d: %s", resp.StatusCode, body)
 	}
 }

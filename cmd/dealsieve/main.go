@@ -19,6 +19,7 @@ import (
 	"github.com/MorrisMorrison/dealsieve/internal/config"
 	"github.com/MorrisMorrison/dealsieve/internal/digest"
 	"github.com/MorrisMorrison/dealsieve/internal/fingerprint"
+	"github.com/MorrisMorrison/dealsieve/internal/judge"
 	"github.com/MorrisMorrison/dealsieve/internal/pipeline"
 	"github.com/MorrisMorrison/dealsieve/internal/poller"
 	"github.com/MorrisMorrison/dealsieve/internal/settings"
@@ -31,6 +32,17 @@ import (
 )
 
 const repoURL = "https://github.com/MorrisMorrison/dealsieve"
+
+// wakeJudge applies settings to the pipeline and lets the judge tick now.
+type wakeJudge struct {
+	*pipeline.Pipeline
+	judge *judge.Runner
+}
+
+func (w wakeJudge) ApplySettings(s settings.Settings) {
+	w.Pipeline.ApplySettings(s)
+	w.judge.Wake()
+}
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
@@ -68,7 +80,20 @@ func run(ctx context.Context) error {
 	feedClient := &http.Client{Timeout: 30 * time.Second}
 	notifyClient := &http.Client{Timeout: 10 * time.Second}
 	pipe := &pipeline.Pipeline{Store: st, Env: env, HTTP: notifyClient, Now: time.Now, Log: log}
-	svc := &settingsvc.Service{Store: st, Apply: pipe, Now: time.Now}
+	// The judge exists before the settings service: Load applies settings,
+	// which wakes it. Its Settings closure only runs later.
+	var svc *settingsvc.Service
+	judgeClient := &http.Client{Timeout: 30 * time.Second}
+	userAgent := "dealsieve/" + version.Version + " (+" + repoURL + ")"
+	jr := &judge.Runner{
+		Store: st, Settings: func() settings.Settings { return svc.Current().Settings },
+		New: func(j settings.Judge) judge.Judge {
+			return &judge.OpenAI{BaseURL: env.JudgeURL, APIKey: env.JudgeAPIKey, Model: j.Model,
+				Instructions: j.Instructions, UserAgent: userAgent, Referer: repoURL, HTTP: judgeClient}
+		},
+		Now: time.Now, Log: log,
+	}
+	svc = &settingsvc.Service{Store: st, Apply: wakeJudge{pipe, jr}, Now: time.Now}
 	if err := svc.Load(ctx); err != nil {
 		return fmt.Errorf("load settings: %w", err)
 	}
@@ -91,7 +116,7 @@ func run(ctx context.Context) error {
 
 	src := &mydealz.Client{
 		BaseURL:   env.MydealzURL,
-		UserAgent: "dealsieve/" + version.Version + " (+" + repoURL + ")",
+		UserAgent: userAgent,
 		HTTP:      feedClient,
 		Log:       log,
 	}
@@ -108,12 +133,13 @@ func run(ctx context.Context) error {
 		Env: env, HTTP: notifyClient, Now: time.Now, Log: log,
 	}
 	wg.Go(func() { dg.Run(ctx) })
+	wg.Go(func() { jr.Run(ctx) })
 
 	srv := &http.Server{
 		Addr: env.Listen,
 		Handler: (&api.Server{
 			Store: st, Recompute: pipe, Status: pl.Status,
-			Settings: svc, Digest: dg, Env: env, HTTP: notifyClient,
+			Settings: svc, Digest: dg, Judge: jr, Env: env, HTTP: notifyClient,
 			Assets: web.Assets, Log: log, Now: time.Now,
 		}).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,

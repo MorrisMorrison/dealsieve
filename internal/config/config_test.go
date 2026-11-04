@@ -83,6 +83,10 @@ func TestJudgeEnv(t *testing.T) {
 	if err != nil || e.JudgeURL != "http://llm.example.test:11434/v1" || e.JudgeAPIKey != "k" {
 		t.Fatalf("set = %q %q %v", e.JudgeURL, e.JudgeAPIKey, err)
 	}
+	env["DEALSIEVE_JUDGE_API_KEY"] = " k\n"
+	if e, err := FromEnv(func(k string) string { return env[k] }); err != nil || e.JudgeAPIKey != "k" {
+		t.Fatalf("untrimmed key = %q %v", e.JudgeAPIKey, err)
+	}
 	env["DEALSIEVE_JUDGE_URL"] = "llm.example.test"
 	if _, err := FromEnv(func(k string) string { return env[k] }); err == nil {
 		t.Fatal("relative URL accepted")

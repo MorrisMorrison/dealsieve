@@ -13,7 +13,9 @@ import (
 
 	"github.com/MorrisMorrison/dealsieve/internal/config"
 	"github.com/MorrisMorrison/dealsieve/internal/digest"
+	"github.com/MorrisMorrison/dealsieve/internal/judge"
 	"github.com/MorrisMorrison/dealsieve/internal/poller"
+	"github.com/MorrisMorrison/dealsieve/internal/settings"
 	"github.com/MorrisMorrison/dealsieve/internal/settingsvc"
 	"github.com/MorrisMorrison/dealsieve/internal/store"
 )
@@ -37,6 +39,7 @@ type Server struct {
 	Status    func() []poller.Status
 	Settings  *settingsvc.Service
 	Digest    DigestTester
+	Judge     JudgeRunner
 	Env       config.Env
 	HTTP      *http.Client
 	Assets    fs.FS
@@ -56,6 +59,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/settings/history", s.settingsHistory)
 	mux.HandleFunc("POST /api/settings/test", s.testChannel)
 	mux.HandleFunc("POST /api/settings/digest/test", s.testDigest)
+	mux.HandleFunc("POST /api/settings/judge/test", s.testJudge)
 	mux.HandleFunc("GET /api/suggestions", s.suggestions)
 	mux.HandleFunc("POST /api/suggestions/apply", s.applySuggestion)
 	mux.HandleFunc("POST /api/suggestions/dismiss", s.dismissSuggestion)
@@ -76,23 +80,24 @@ func securityHeaders(next http.Handler) http.Handler {
 }
 
 type dealJSON struct {
-	ID           string    `json:"id"`
-	URL          string    `json:"url"`
-	Title        string    `json:"title"`
-	Merchant     string    `json:"merchant"`
-	Price        string    `json:"price"`
-	Category     string    `json:"category"`
-	ImageURL     string    `json:"image_url"`
-	Temperature  *int      `json:"temperature"`
-	Temperatures []int     `json:"temperatures"`
-	FirstSeen    time.Time `json:"first_seen"`
-	LastSeen     time.Time `json:"last_seen"`
-	InTrending   bool      `json:"in_trending"`
-	InNew        bool      `json:"in_new"`
-	Decision     string    `json:"decision"`
-	Score        int       `json:"score"`
-	WatchlistHit bool      `json:"watchlist_hit"`
-	Reasons      []string  `json:"reasons"`
+	ID           string       `json:"id"`
+	URL          string       `json:"url"`
+	Title        string       `json:"title"`
+	Merchant     string       `json:"merchant"`
+	Price        string       `json:"price"`
+	Category     string       `json:"category"`
+	ImageURL     string       `json:"image_url"`
+	Temperature  *int         `json:"temperature"`
+	Temperatures []int        `json:"temperatures"`
+	FirstSeen    time.Time    `json:"first_seen"`
+	LastSeen     time.Time    `json:"last_seen"`
+	InTrending   bool         `json:"in_trending"`
+	InNew        bool         `json:"in_new"`
+	Decision     string       `json:"decision"`
+	Score        int          `json:"score"`
+	WatchlistHit bool         `json:"watchlist_hit"`
+	Reasons      []string     `json:"reasons"`
+	Opinion      *opinionJSON `json:"opinion"`
 }
 
 func (s *Server) listDeals(w http.ResponseWriter, r *http.Request) {
@@ -123,11 +128,20 @@ func (s *Server) listDeals(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
+	ops, err := s.Store.Opinions(r.Context(), ids)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
 	out := make([]dealJSON, 0, len(listed))
 	for _, l := range listed {
 		t := temps[l.ID]
 		if t == nil {
 			t = []int{}
+		}
+		var op *opinionJSON
+		if o, ok := ops[l.ID]; ok {
+			op = &opinionJSON{Rating: o.Rating, Reason: o.Reason, Model: o.Model, JudgedAt: o.JudgedAt}
 		}
 		reasons := l.Verdict.Reasons
 		if reasons == nil {
@@ -138,6 +152,7 @@ func (s *Server) listDeals(w http.ResponseWriter, r *http.Request) {
 			ImageURL: l.ImageURL, Temperature: l.Temperature, Temperatures: t, FirstSeen: l.FirstSeen,
 			LastSeen: l.LastSeen, InTrending: l.InTrending, InNew: l.InNew, Decision: l.Verdict.Decision,
 			Score: l.Verdict.Score, WatchlistHit: l.Verdict.WatchlistHit, Reasons: reasons,
+			Opinion: op,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"deals": out, "counts": counts})
@@ -224,7 +239,23 @@ func (s *Server) deleteAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"feeds": s.Status()})
+	j := s.Settings.Current().Settings.Judge
+	js := judge.Status{}
+	if s.Judge != nil {
+		var err error
+		if js, err = s.Judge.Status(r.Context()); err != nil {
+			s.fail(w, err)
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"feeds": s.Status(),
+		"judge": map[string]any{
+			"enabled": j.Enabled, "model": j.Model, "daily_limit": j.DailyLimit,
+			"url": s.Env.JudgeURL, "key_set": s.Env.JudgeAPIKey != "",
+			"calls_24h": js.Calls24h, "last_error": js.LastError, "last_error_at": js.LastErrorAt,
+		},
+	})
 }
 
 func (s *Server) fail(w http.ResponseWriter, err error) {
@@ -278,4 +309,16 @@ func (s *Server) undoAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type JudgeRunner interface {
+	Status(ctx context.Context) (judge.Status, error)
+	Test(ctx context.Context, j settings.Judge) judge.TestResult
+}
+
+type opinionJSON struct {
+	Rating   string    `json:"rating"`
+	Reason   string    `json:"reason"`
+	Model    string    `json:"model"`
+	JudgedAt time.Time `json:"judged_at"`
 }

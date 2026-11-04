@@ -56,7 +56,7 @@ func FromEnv(getenv func(string) string) (Env, error) {
 		LogFormat:     or("DEALSIEVE_LOG_FORMAT", "text"),
 		TelegramToken: getenv("DEALSIEVE_TELEGRAM_TOKEN"),
 		NtfyToken:     getenv("DEALSIEVE_NTFY_TOKEN"),
-		JudgeAPIKey:   getenv("DEALSIEVE_JUDGE_API_KEY"),
+		JudgeAPIKey:   strings.TrimSpace(getenv("DEALSIEVE_JUDGE_API_KEY")),
 		MydealzURL:    or("DEALSIEVE_MYDEALZ_URL", "https://www.mydealz.de"),
 		PollTrending:  poll("DEALSIEVE_POLL_TRENDING", 5*time.Minute),
 		PollNew:       poll("DEALSIEVE_POLL_NEW", 2*time.Minute),
