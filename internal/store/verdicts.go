@@ -101,9 +101,26 @@ func (s *Store) GetVerdict(ctx context.Context, dealID string) (Verdict, error) 
 	return v, json.Unmarshal([]byte(reasons), &v.Reasons)
 }
 
+// sourceFilter limits a query on deals d to sources; nil means every source,
+// an empty non-nil slice matches nothing.
+func sourceFilter(sources []string) (string, []any) {
+	if sources == nil {
+		return "", nil
+	}
+	if len(sources) == 0 {
+		return " AND 0", nil
+	}
+	args := make([]any, len(sources))
+	for i, s := range sources {
+		args[i] = s
+	}
+	return " AND d.source IN (?" + strings.Repeat(", ?", len(sources)-1) + ")", args
+}
+
 // CountViews returns how many deals each view holds, with the same filters as
-// ListDeals but no limit.
-func (s *Store) CountViews(ctx context.Context, since time.Time) (map[string]int, error) {
+// ListDeals but no limit. sources limits the count to those sources; nil means
+// every source, an empty slice none.
+func (s *Store) CountViews(ctx context.Context, sources []string, since time.Time) (map[string]int, error) {
 	views := []string{ViewPassed, ViewWatchlist, ViewBlocked}
 	cols := make([]string, len(views))
 	for i, v := range views {
@@ -114,8 +131,10 @@ func (s *Store) CountViews(ctx context.Context, since time.Time) (map[string]int
 	for i := range counts {
 		dest[i] = &counts[i]
 	}
+	filter, fargs := sourceFilter(sources)
 	err := s.db.QueryRowContext(ctx, `SELECT `+strings.Join(cols, ", ")+`
-		FROM deals d JOIN verdicts v ON v.deal_id = d.id WHERE d.last_seen >= ?`, since.Unix()).Scan(dest...)
+		FROM deals d JOIN verdicts v ON v.deal_id = d.id WHERE d.last_seen >= ?`+filter,
+		append([]any{since.Unix()}, fargs...)...).Scan(dest...)
 	if err != nil {
 		return nil, err
 	}
@@ -127,15 +146,19 @@ func (s *Store) CountViews(ctx context.Context, since time.Time) (map[string]int
 }
 
 // ListDeals returns a view's deals last seen since since, best score first.
-func (s *Store) ListDeals(ctx context.Context, view string, since time.Time, limit int) ([]Listed, error) {
+// sources limits the deals to those sources; nil means every source, an empty
+// slice none.
+func (s *Store) ListDeals(ctx context.Context, view string, sources []string, since time.Time, limit int) ([]Listed, error) {
 	where, ok := viewFilters[view]
 	if !ok {
 		return nil, fmt.Errorf("unknown view %q", view)
 	}
+	filter, fargs := sourceFilter(sources)
+	args := append(append([]any{since.Unix()}, fargs...), limit)
 	rows, err := s.db.QueryContext(ctx, `SELECT `+dealColumns+`, v.decision, v.score, v.watchlist_hit, v.reasons, v.decided_at
 		FROM deals d JOIN verdicts v ON v.deal_id = d.id
-		WHERE `+where+` AND d.last_seen >= ?
-		ORDER BY v.score DESC, d.first_seen DESC, d.id LIMIT ?`, since.Unix(), limit)
+		WHERE `+where+` AND d.last_seen >= ?`+filter+`
+		ORDER BY v.score DESC, d.first_seen DESC, d.id LIMIT ?`, args...)
 	if err != nil {
 		return nil, err
 	}

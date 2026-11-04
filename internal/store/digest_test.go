@@ -55,7 +55,7 @@ func TestDigestDeals(t *testing.T) {
 	add("trended", intp(400), since.Add(-48*time.Hour), "pass", false)
 	mustUpsert(t, s, deal("trended", intp(400)), source.FeedTrending, "shop|trended", t0.Add(-time.Hour))
 
-	hits, others, err := s.DigestDeals(ctx, "phone", since, 3)
+	hits, others, err := s.DigestDeals(ctx, "phone", nil, since, 3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestDigestDeals(t *testing.T) {
 	if got := dealIDs(others); !slices.Equal(got, []string{"mydealz:hot", "mydealz:trended", "mydealz:warm"}) {
 		t.Errorf("others = %v", got)
 	}
-	_, all, _ := s.DigestDeals(ctx, "phone", since, 25)
+	_, all, _ := s.DigestDeals(ctx, "phone", nil, since, 25)
 	if got := dealIDs(all); !slices.Equal(got, []string{"mydealz:hot", "mydealz:trended", "mydealz:warm", "mydealz:edge", "mydealz:nil"}) {
 		t.Errorf("all others = %v", got)
 	}
@@ -82,10 +82,10 @@ func TestDigestDealsSkipsDealsAlreadySentToTheChannel(t *testing.T) {
 	}
 	mustUpsert(t, s, deal("a", intp(100)), source.FeedTrending, "shop|a", t0.Add(time.Hour)) // still active
 	since := t0.Add(-time.Hour)
-	if _, others, err := s.DigestDeals(ctx, "phone", since, 10); err != nil || !slices.Equal(dealIDs(others), []string{"mydealz:b"}) {
+	if _, others, err := s.DigestDeals(ctx, "phone", nil, since, 10); err != nil || !slices.Equal(dealIDs(others), []string{"mydealz:b"}) {
 		t.Errorf("phone = %v, %v", dealIDs(others), err)
 	}
-	if _, others, err := s.DigestDeals(ctx, "tg", since, 10); err != nil || len(others) != 2 {
+	if _, others, err := s.DigestDeals(ctx, "tg", nil, since, 10); err != nil || len(others) != 2 {
 		t.Errorf("tg = %v, %v; want both", dealIDs(others), err)
 	}
 }
@@ -97,7 +97,7 @@ func TestDigestDealsCapsWatchlistHits(t *testing.T) {
 		mustUpsert(t, s, deal(id, nil), source.FeedTrending, "shop|"+id, t0.Add(-time.Duration(i)*time.Minute))
 		save(t, s, "mydealz:"+id, "pass", 0, true)
 	}
-	hits, _, err := s.DigestDeals(ctx, "phone", t0.Add(-time.Hour), 10)
+	hits, _, err := s.DigestDeals(ctx, "phone", nil, t0.Add(-time.Hour), 10)
 	if err != nil || len(hits) != MaxDigestHits {
 		t.Errorf("hits = %d, %v", len(hits), err)
 	}

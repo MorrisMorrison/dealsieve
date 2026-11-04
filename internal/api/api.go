@@ -104,12 +104,12 @@ func (s *Server) listDeals(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "unknown view")
 		return
 	}
-	listed, err := s.Store.ListDeals(r.Context(), view, s.Now().Add(-listWindow), listLimit)
+	listed, err := s.Store.ListDeals(r.Context(), view, nil, s.Now().Add(-listWindow), listLimit)
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
-	counts, err := s.Store.CountViews(r.Context(), s.Now().Add(-listWindow))
+	counts, err := s.Store.CountViews(r.Context(), nil, s.Now().Add(-listWindow))
 	if err != nil {
 		s.fail(w, err)
 		return

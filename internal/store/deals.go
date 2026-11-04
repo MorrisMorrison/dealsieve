@@ -115,14 +115,15 @@ func (s *Store) DealsSeenSince(ctx context.Context, since time.Time) ([]DealReco
 // when the latest of them was first seen. Deals first seen in the same poll
 // are ordered by id, so of two identical ones only the second counts the
 // first. Looking only backwards keeps a verdict stable: re-posts that arrive
-// later never turn an earlier deal into a recurring one.
-func (s *Store) CountRecurrence(ctx context.Context, fingerprint, id string, firstSeen time.Time, window time.Duration) (int, time.Time, error) {
+// later never turn an earlier deal into a recurring one. Only deals of the
+// same source count: sites don't share offers.
+func (s *Store) CountRecurrence(ctx context.Context, source, fingerprint, id string, firstSeen time.Time, window time.Duration) (int, time.Time, error) {
 	var n int
 	var last sql.NullInt64
 	at := firstSeen.Unix()
 	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*), MAX(first_seen) FROM deals
-		WHERE fingerprint = ? AND first_seen >= ? AND (first_seen < ? OR (first_seen = ? AND id < ?))`,
-		fingerprint, firstSeen.Add(-window).Unix(), at, at, id).Scan(&n, &last)
+		WHERE source = ? AND fingerprint = ? AND first_seen >= ? AND (first_seen < ? OR (first_seen = ? AND id < ?))`,
+		source, fingerprint, firstSeen.Add(-window).Unix(), at, at, id).Scan(&n, &last)
 	if err != nil || !last.Valid {
 		return n, time.Time{}, err
 	}

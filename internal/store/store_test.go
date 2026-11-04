@@ -110,7 +110,7 @@ func TestCountRecurrence(t *testing.T) {
 	mustUpsert(t, s, deal("later", nil), source.FeedTrending, "shop|x", t0.Add(day))
 
 	// Only earlier deals count, within the window that ends at this deal.
-	n, last, err := s.CountRecurrence(ctx, "shop|x", "mydealz:me", t0, 90*day)
+	n, last, err := s.CountRecurrence(ctx, "mydealz", "shop|x", "mydealz:me", t0, 90*day)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,10 +118,10 @@ func TestCountRecurrence(t *testing.T) {
 		t.Errorf("count %d, last %v; want 2 and %v", n, last, t0.Add(-day))
 	}
 	// An older deal keeps its count when re-posts arrive after it.
-	if n, _, _ := s.CountRecurrence(ctx, "shop|x", "mydealz:b", t0.Add(-10*day), 90*day); n != 1 {
+	if n, _, _ := s.CountRecurrence(ctx, "mydealz", "shop|x", "mydealz:b", t0.Add(-10*day), 90*day); n != 1 {
 		t.Errorf("count for b = %d, want 1 (only a)", n)
 	}
-	if n, _, _ := s.CountRecurrence(ctx, "shop|none", "x", t0, 90*day); n != 0 {
+	if n, _, _ := s.CountRecurrence(ctx, "mydealz", "shop|none", "x", t0, 90*day); n != 0 {
 		t.Errorf("count = %d, want 0", n)
 	}
 }
@@ -130,8 +130,8 @@ func TestCountRecurrenceSamePollCountsOnce(t *testing.T) {
 	s := openTest(t)
 	mustUpsert(t, s, deal("1", nil), source.FeedTrending, "shop|x", t0)
 	mustUpsert(t, s, deal("2", nil), source.FeedTrending, "shop|x", t0)
-	n1, _, _ := s.CountRecurrence(ctx, "shop|x", "mydealz:1", t0, time.Hour)
-	n2, _, _ := s.CountRecurrence(ctx, "shop|x", "mydealz:2", t0, time.Hour)
+	n1, _, _ := s.CountRecurrence(ctx, "mydealz", "shop|x", "mydealz:1", t0, time.Hour)
+	n2, _, _ := s.CountRecurrence(ctx, "mydealz", "shop|x", "mydealz:2", t0, time.Hour)
 	if n1+n2 != 1 {
 		t.Errorf("counts %d and %d; want one of them to see the other", n1, n2)
 	}
@@ -230,7 +230,7 @@ func TestListDealsViews(t *testing.T) {
 		ViewWatchlist: {"mydealz:b"},
 		ViewBlocked:   {"mydealz:c"},
 	} {
-		got, err := s.ListDeals(ctx, view, t0.Add(-time.Hour), 100)
+		got, err := s.ListDeals(ctx, view, nil, t0.Add(-time.Hour), 100)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -238,25 +238,25 @@ func TestListDealsViews(t *testing.T) {
 			t.Errorf("%s = %v, want %v", view, ids(got), want)
 		}
 	}
-	got, _ := s.ListDeals(ctx, ViewBlocked, t0.Add(-time.Hour), 100)
+	got, _ := s.ListDeals(ctx, ViewBlocked, nil, t0.Add(-time.Hour), 100)
 	if v := got[0].Verdict; v.Decision != "block" || v.Score != 50 || !slices.Equal(v.Reasons, []string{"r-mydealz:c"}) {
 		t.Errorf("verdict = %+v", v)
 	}
-	if got, _ := s.ListDeals(ctx, ViewPassed, t0.Add(time.Hour), 100); len(got) != 0 {
+	if got, _ := s.ListDeals(ctx, ViewPassed, nil, t0.Add(time.Hour), 100); len(got) != 0 {
 		t.Errorf("since filter: got %v", ids(got))
 	}
-	if _, err := s.ListDeals(ctx, "nope", t0, 10); err == nil {
+	if _, err := s.ListDeals(ctx, "nope", nil, t0, 10); err == nil {
 		t.Error("want an error for an unknown view")
 	}
 
-	counts, err := s.CountViews(ctx, t0.Add(-time.Hour))
+	counts, err := s.CountViews(ctx, nil, t0.Add(-time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if want := map[string]int{ViewPassed: 2, ViewWatchlist: 1, ViewBlocked: 1}; !maps.Equal(counts, want) {
 		t.Errorf("counts = %v, want %v", counts, want)
 	}
-	counts, err = s.CountViews(ctx, t0.Add(time.Hour))
+	counts, err = s.CountViews(ctx, nil, t0.Add(time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}

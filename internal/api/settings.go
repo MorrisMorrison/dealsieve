@@ -194,7 +194,7 @@ func (s *Server) dismissSuggestion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) categories(w http.ResponseWriter, r *http.Request) {
-	list, err := s.Store.Categories(r.Context())
+	list, err := s.Store.Categories(r.Context(), nil)
 	if err != nil {
 		s.fail(w, err)
 		return

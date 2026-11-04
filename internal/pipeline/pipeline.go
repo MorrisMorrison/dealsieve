@@ -151,7 +151,7 @@ func verdictOf(rec store.DealRecord, res rules.Result, now time.Time) store.Verd
 }
 
 func (p *Pipeline) evaluate(ctx context.Context, rec store.DealRecord, af actionFacts, now time.Time) (rules.Result, error) {
-	n, last, err := p.Store.CountRecurrence(ctx, rec.Fingerprint, rec.ID, rec.FirstSeen, p.Engine.Window())
+	n, last, err := p.Store.CountRecurrence(ctx, rec.Source, rec.Fingerprint, rec.ID, rec.FirstSeen, p.Engine.Window())
 	if err != nil {
 		return rules.Result{}, err
 	}

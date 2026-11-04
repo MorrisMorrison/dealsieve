@@ -58,21 +58,24 @@ func (s *Store) CompleteDigest(ctx context.Context, channel string, dealIDs []st
 // Deals usually pass hours after they are first seen, so the window is on
 // last_seen, and digest_sent keeps a deal from being listed twice. Watchlist
 // hits come newest first (at most MaxDigestHits), the others by temperature,
-// unknown last, then newest first (at most top).
-func (s *Store) DigestDeals(ctx context.Context, channel string, since time.Time, top int) (hits, others []DealRecord, err error) {
-	const base = `SELECT ` + dealColumns + ` FROM deals d JOIN verdicts v ON v.deal_id = d.id
+// unknown last, then newest first (at most top). sources limits the deals to
+// those sources; nil means every source, an empty slice none.
+func (s *Store) DigestDeals(ctx context.Context, channel string, sources []string, since time.Time, top int) (hits, others []DealRecord, err error) {
+	filter, fargs := sourceFilter(sources)
+	base := `SELECT ` + dealColumns + ` FROM deals d JOIN verdicts v ON v.deal_id = d.id
 		WHERE v.decision = 'pass' AND v.watchlist_hit = ? AND d.last_seen > ?
-			AND NOT EXISTS (SELECT 1 FROM digest_sent s WHERE s.channel = ? AND s.deal_id = d.id) `
-	hits, err = s.digestQuery(ctx, base+`ORDER BY d.first_seen DESC, d.id LIMIT ?`, 1, since, channel, MaxDigestHits)
+			AND NOT EXISTS (SELECT 1 FROM digest_sent s WHERE s.channel = ? AND s.deal_id = d.id)` + filter + ` `
+	hits, err = s.digestQuery(ctx, base+`ORDER BY d.first_seen DESC, d.id LIMIT ?`, 1, since, channel, fargs, MaxDigestHits)
 	if err != nil {
 		return nil, nil, err
 	}
-	others, err = s.digestQuery(ctx, base+`ORDER BY d.temperature IS NULL, d.temperature DESC, d.first_seen DESC, d.id LIMIT ?`, 0, since, channel, top)
+	others, err = s.digestQuery(ctx, base+`ORDER BY d.temperature IS NULL, d.temperature DESC, d.first_seen DESC, d.id LIMIT ?`, 0, since, channel, fargs, top)
 	return hits, others, err
 }
 
-func (s *Store) digestQuery(ctx context.Context, query string, watch int, since time.Time, channel string, limit int) ([]DealRecord, error) {
-	rows, err := s.db.QueryContext(ctx, query, watch, since.Unix(), channel, limit)
+func (s *Store) digestQuery(ctx context.Context, query string, watch int, since time.Time, channel string, fargs []any, limit int) ([]DealRecord, error) {
+	args := append(append([]any{watch, since.Unix(), channel}, fargs...), limit)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

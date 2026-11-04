@@ -75,7 +75,7 @@ func TestRunShutsDownCleanly(t *testing.T) {
 		t.Fatalf("reopen database: %v", err)
 	}
 	defer st.Close()
-	if _, err := st.ListDeals(context.Background(), "passed", time.Time{}, 10); err != nil {
+	if _, err := st.ListDeals(context.Background(), "passed", nil, time.Time{}, 10); err != nil {
 		t.Fatalf("database unusable after shutdown: %v", err)
 	}
 }

@@ -169,7 +169,7 @@ func windowStart(last time.Time, hasLast bool, now time.Time) time.Time {
 // compose builds the channel's digest and returns the ids of the deals it
 // lists; no ids means there is nothing to send.
 func (r *Runner) compose(ctx context.Context, ch string, d settings.Digest, last time.Time, hasLast bool, now time.Time) (notify.Message, []string, error) {
-	hits, top, err := r.Store.DigestDeals(ctx, ch, windowStart(last, hasLast, now), d.Top)
+	hits, top, err := r.Store.DigestDeals(ctx, ch, nil, windowStart(last, hasLast, now), d.Top)
 	if err != nil {
 		return notify.Message{}, nil, err
 	}
