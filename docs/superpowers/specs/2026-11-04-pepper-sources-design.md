@@ -66,7 +66,7 @@ A new top-level key in the settings document, keyed by source name:
   - `Parse(r, site string)`: today's parser with the ID prefix and `Source` taken from the site name.
   - `Client{Site, BaseURL, UserAgent, HTTP, Log}` implements `source.Fetcher`: trending uses `/rss/trending`, new uses `Site.NewPath`. Status errors and the 5 MiB read limit stay as they are.
 - **`internal/config`:** `SourceURLs map[string]string`, built from the defaults plus the `DEALSIEVE_<NAME>_URL` overrides (validated as absolute http(s) URLs). `MydealzURL` is removed.
-- **`internal/settings`:** `Sources map[string]Source` with `Source{Enabled bool; MinTemperature *int}`, plus `Defaults`, `Normalize`, `Validate`, `Summarize` and `EnabledSources() []string` in table order. The list of known names lives in settings (`settings.SourceNames`). The pepper package's table is tested to match it, so settings doesn't import the source package.
+- **`internal/settings`:** `Sources map[string]Source` with `Source{Enabled bool; MinTemperature *int}`, plus `Defaults`, `Normalize`, `Validate`, `Summarize` and `EnabledSources() []string` in table order and `SourceMinimums() map[string]int`. The known names and their display labels live in settings (`settings.SourceNames`, `settings.SourceLabel(name)`: `pepperpl` → `pepper.pl`, others unchanged). The pepper package's table is tested to match it, so settings doesn't import the source package.
 - **`internal/rules`:** `rules.Deal` gains `Source`. `rules.New(r, watchlist, sourceMins map[string]int)` (only sources with a value). `minTemperatureFor(category, source)` returns the threshold and which kind decided, so the reason can name the source. Table tests cover every precedence case and both reason texts.
 - **`internal/store`:**
   - `CountRecurrence` takes the source and adds `AND source = ?`. The existing `deals_fingerprint` index still narrows by fingerprint first, so no new index is needed.
@@ -76,9 +76,9 @@ A new top-level key in the settings document, keyed by source name:
 - **`internal/pipeline`:** `ApplySettings` also stores the enabled sources. `evaluate` passes `rec.Source` to `CountRecurrence` and `rules.Deal`. `retryPending` skips deals whose source is off. `send` passes the source label to `notify.DealMessage` only when more than one source is enabled.
 - **`internal/notify`:** `DealMessage` gains a `source` argument. When it isn't empty, the ntfy title and the first Telegram line start with `hotukdeals · `.
 - **`internal/digest`:** each line gets the site label when more than one source is enabled. Selection is limited to enabled sources.
-- **`internal/api`:** `/api/deals` accepts `?source=<name>` (an unknown or disabled name is a 400 `{"error": "unknown source"}`). Without it, the list covers all enabled sources. Each deal in the response gets a `source` field. `/api/status` returns the per-loop rows with `source`, plus `sources`: the enabled source names in table order. `/api/categories` covers enabled sources. Everything reads the enabled sources from `svc.Current().Settings`.
+- **`internal/api`:** `/api/deals` accepts `?source=<name>` (an unknown or disabled name is a 400 `{"error": "unknown source"}`). Without it, the list covers all enabled sources. Each deal in the response gets `source` and `source_label`. `GET /api/settings` also returns `sites`: every known site as `{name, label, domain}` in table order, for the Sources card. `/api/status` returns the per-loop rows with `source`, plus `sources`: the enabled source names in table order. `/api/categories` covers enabled sources. Everything reads the enabled sources from `svc.Current().Settings`.
 - **Wiring (`cmd/dealsieve/main.go`):** builds one `pepper.Client` per site from `env.SourceURLs`, gives them all to the poller, and calls `SetSources` with the stored settings before `Run`. The settings service applies to both the pipeline and the poller: `main.go` passes a small applier that calls `pipe.ApplySettings` and then `pl.SetSources`.
-- **Web:** `render.js` shows the site label on rows and in the detail panel when more than one source is enabled (the inbox reads the enabled list from `/api/status`, which it already loads). `main.js` adds the filter select. `settings.js` adds the Sources card. A pure helper `sourceLabel(name)` (`pepperpl` → `pepper.pl`) goes in `format.js` with a test.
+- **Web:** `render.js` shows the site label on rows and in the detail panel when more than one source is enabled (the inbox reads the enabled list from `/api/status`, which it already loads). `main.js` adds the filter select. `settings.js` adds the Sources card from the `sites` list in `GET /api/settings`. The page never hard-codes site names: labels come from the server (`source_label` on each deal, `label` in the status and site lists).
 
 ## Fingerprints
 
@@ -112,7 +112,6 @@ This changes `CleanTitle`, so it is a **fingerprint migration**: the startup `St
 - **pipeline:** a deal from a turned-off source isn't retried; the source label is only on messages when more than one source is on.
 - **fingerprint:** new stopwords are dropped; `RekeyOld` drops them from old keys; `Of` on a title without stopwords is unchanged.
 - **api:** `?source=` filter, 400 on an unknown source, `source` in the JSON.
-- **frontend:** `sourceLabel` in `format.test.js`.
 - **e2e:** the fake feed server also serves hotukdeals fixtures (`DEALSIEVE_HOTUKDEALS_URL`). The test turns hotukdeals on with `PUT /api/settings` and checks that its deals appear with `source: "hotukdeals"` and that `?source=hotukdeals` returns only those.
 - **By hand, before the PR:** a local build with mydealz and hotukdeals on against the live feeds; screenshots of the label, the filter and the Sources card (light and dark, 375 px).
 
