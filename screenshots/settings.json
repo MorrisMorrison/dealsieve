@@ -1,0 +1,14 @@
+{
+  "watchlist": ["oled"],
+  "rules": {
+    "min_temperature": 100,
+    "category_overrides": {},
+    "muted_categories": ["Fashion & Accessoires"],
+    "muted_merchants": [],
+    "block_keywords": ["gratisprobe"],
+    "recurrence": { "window_days": 90, "max_seen": 2 }
+  },
+  "channels": {},
+  "notify": [],
+  "suggestions": { "min_count": 3, "window_days": 30 }
+}

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/MorrisMorrison/dealsieve/internal/config"
+	"github.com/MorrisMorrison/dealsieve/internal/settings"
 )
 
 type Message struct {
@@ -40,17 +41,26 @@ func DealMessage(title, price, merchant string, temperature *int, reasons []stri
 	return Message{Title: title, Body: body, ClickURL: url, ImageURL: imageURL}
 }
 
-// FromConfig builds one notifier per configured channel. The config is
-// already validated, so unknown types don't occur.
-func FromConfig(channels map[string]config.Channel, env config.Env, hc *http.Client) map[string]Notifier {
+// FromSettings builds one notifier per channel. Settings are validated, so
+// unknown types don't occur; they are skipped all the same.
+func FromSettings(channels map[string]settings.Channel, env config.Env, hc *http.Client) map[string]Notifier {
 	out := make(map[string]Notifier, len(channels))
 	for name, ch := range channels {
-		switch ch.Type {
-		case "ntfy":
-			out[name] = &Ntfy{BaseURL: ch.URL, Topic: ch.Topic, Priority: ch.Priority, Token: env.NtfyToken, HTTP: hc}
-		case "telegram":
-			out[name] = &Telegram{APIBase: "https://api.telegram.org", Token: env.TelegramToken, ChatID: ch.ChatID, HTTP: hc}
+		if n := ForChannel(ch, env, hc); n != nil {
+			out[name] = n
 		}
 	}
 	return out
+}
+
+// ForChannel builds the notifier for one channel, e.g. to send a test
+// message from unsaved form values. It returns nil for an unknown type.
+func ForChannel(ch settings.Channel, env config.Env, hc *http.Client) Notifier {
+	switch ch.Type {
+	case "ntfy":
+		return &Ntfy{BaseURL: ch.URL, Topic: ch.Topic, Priority: ch.Priority, Token: env.NtfyToken, HTTP: hc}
+	case "telegram":
+		return &Telegram{APIBase: "https://api.telegram.org", Token: env.TelegramToken, ChatID: ch.ChatID, HTTP: hc}
+	}
+	return nil
 }

@@ -6,19 +6,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MorrisMorrison/dealsieve/internal/config"
+	"github.com/MorrisMorrison/dealsieve/internal/settings"
 )
 
 func intp(v int) *int { return &v }
 
 func engine() *Engine {
-	return New(config.Rules{
+	return New(settings.Rules{
 		MinTemperature:    100,
 		CategoryOverrides: map[string]int{"Elektronik": 60},
 		MutedCategories:   []string{"Fashion"},
 		MutedMerchants:    []string{"Example Air"},
 		BlockKeywords:     []string{"Gratisprobe"},
-		Recurrence:        config.Recurrence{Window: config.Duration(90 * 24 * time.Hour), MaxSeen: 2},
+		Recurrence:        settings.Recurrence{WindowDays: 90, MaxSeen: 2},
 	}, []string{"RTX 5080", "oled"})
 }
 

@@ -17,13 +17,26 @@ import (
 
 	"github.com/MorrisMorrison/dealsieve/internal/config"
 	"github.com/MorrisMorrison/dealsieve/internal/poller"
+	"github.com/MorrisMorrison/dealsieve/internal/settings"
+	"github.com/MorrisMorrison/dealsieve/internal/settingsvc"
 	"github.com/MorrisMorrison/dealsieve/internal/source"
 	"github.com/MorrisMorrison/dealsieve/internal/store"
 )
 
-type fakeRecompute struct{ calls int }
+type fakeRecompute struct {
+	calls, applied int
+	err            error
+}
 
-func (f *fakeRecompute) RecomputeRecent(context.Context) error { f.calls++; return nil }
+func (f *fakeRecompute) ApplySettings(settings.Settings) { f.applied++ }
+
+func (f *fakeRecompute) RecomputeRecent(context.Context) (int, error) {
+	f.calls++
+	if f.err != nil {
+		return 0, f.err
+	}
+	return 7, nil
+}
 
 func intp(v int) *int { return &v }
 
@@ -31,6 +44,7 @@ type harness struct {
 	srv *httptest.Server
 	st  *store.Store
 	rc  *fakeRecompute
+	svc *settingsvc.Service
 }
 
 func newHarness(t *testing.T) *harness {
@@ -58,18 +72,24 @@ func newHarness(t *testing.T) *harness {
 	seed("old", "Example Old", "Elektronik", 500, now.Add(-5*24*time.Hour), "pass")
 
 	rc := &fakeRecompute{}
+	svc := &settingsvc.Service{Store: st, Apply: rc, Now: func() time.Time { return now }}
+	if err := svc.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
 	s := &Server{
 		Store:     st,
 		Recompute: rc,
 		Status:    func() []poller.Status { return []poller.Status{{Feed: "trending", Interval: "5m0s"}} },
-		Config:    &config.Config{Watchlist: []string{"oled"}, Rules: config.Rules{MinTemperature: 100}},
+		Settings:  svc,
+		Env:       config.Env{},
+		HTTP:      http.DefaultClient,
 		Assets:    fstest.MapFS{"index.html": {Data: []byte("<h1>dealsieve</h1>")}},
 		Log:       slog.New(slog.DiscardHandler),
 		Now:       func() time.Time { return now },
 	}
 	srv := httptest.NewServer(s.Handler())
 	t.Cleanup(srv.Close)
-	return &harness{srv: srv, st: st, rc: rc}
+	return &harness{srv: srv, st: st, rc: rc, svc: svc}
 }
 
 func (h *harness) do(t *testing.T, method, path, body string) (*http.Response, []byte) {
@@ -145,18 +165,27 @@ func TestAddAndDeleteAction(t *testing.T) {
 	if resp.StatusCode != 201 {
 		t.Fatalf("status %d: %s", resp.StatusCode, body)
 	}
-	var a store.Action
-	json.Unmarshal(body, &a)
-	if a.Kind != store.ActionMuteCategory || a.Value != "Elektronik" || a.ID == 0 || h.rc.calls != 1 {
-		t.Errorf("action %+v, recompute calls %d", a, h.rc.calls)
+	var muted struct {
+		Kind    string `json:"kind"`
+		Value   string `json:"value"`
+		Version int64  `json:"version"`
+	}
+	json.Unmarshal(body, &muted)
+	cur := h.svc.Current()
+	if muted.Kind != store.ActionMuteCategory || muted.Value != "Elektronik" || muted.Version != cur.Version ||
+		!slices.Equal(cur.Settings.Rules.MutedCategories, []string{"Elektronik"}) || h.rc.calls != 1 {
+		t.Errorf("mute response %s, settings %+v, recompute calls %d", body, cur.Settings.Rules, h.rc.calls)
 	}
 
-	if resp, _ := h.do(t, "POST", "/api/actions", `{"kind":"junk","deal_id":"mydealz:a"}`); resp.StatusCode != 201 {
-		t.Errorf("junk status = %d", resp.StatusCode)
+	resp, body = h.do(t, "POST", "/api/actions", `{"kind":"junk","deal_id":"mydealz:a"}`)
+	if resp.StatusCode != 201 {
+		t.Fatalf("junk status = %d", resp.StatusCode)
 	}
+	var a store.Action
+	json.Unmarshal(body, &a)
 	actions, _ := h.st.Actions(context.Background())
-	if actions[0].Value != "shop|a" {
-		t.Errorf("junk value = %q, want the fingerprint", actions[0].Value)
+	if len(actions) != 1 || actions[0].Value != "shop|a" || a.ID == 0 {
+		t.Errorf("actions = %+v, want only the junk fingerprint", actions)
 	}
 
 	if resp, _ := h.do(t, "DELETE", "/api/actions/"+jsonID(a.ID), ""); resp.StatusCode != 204 {
@@ -196,24 +225,9 @@ func TestActionErrors(t *testing.T) {
 	}
 }
 
-func TestRulesStatusHealthAndPage(t *testing.T) {
+func TestStatusHealthAndPage(t *testing.T) {
 	h := newHarness(t)
-	h.do(t, "POST", "/api/actions", `{"kind":"hide_deal","deal_id":"mydealz:a"}`)
-
-	_, body := h.do(t, "GET", "/api/rules", "")
-	var rules struct {
-		Rules     map[string]any `json:"rules"`
-		Watchlist []string       `json:"watchlist"`
-		Actions   []store.Action `json:"actions"`
-	}
-	if err := json.Unmarshal(body, &rules); err != nil {
-		t.Fatal(err)
-	}
-	if rules.Rules["min_temperature"] != float64(100) || rules.Watchlist[0] != "oled" || len(rules.Actions) != 1 {
-		t.Errorf("rules = %s", body)
-	}
-
-	_, body = h.do(t, "GET", "/api/status", "")
+	_, body := h.do(t, "GET", "/api/status", "")
 	if !strings.Contains(string(body), `"feed":"trending"`) {
 		t.Errorf("status = %s", body)
 	}

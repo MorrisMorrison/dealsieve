@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -28,10 +27,6 @@ func TestRunShutsDownCleanly(t *testing.T) {
 	defer feeds.Close()
 
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "config.yaml")
-	if err := os.WriteFile(cfgPath, []byte("poll: { trending: 1m, new: 1m }\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +34,8 @@ func TestRunShutsDownCleanly(t *testing.T) {
 	listen := l.Addr().String()
 	l.Close()
 	dataDir := filepath.Join(dir, "data")
-	t.Setenv("DEALSIEVE_CONFIG", cfgPath)
+	t.Setenv("DEALSIEVE_POLL_TRENDING", "1m")
+	t.Setenv("DEALSIEVE_POLL_NEW", "1m")
 	t.Setenv("DEALSIEVE_DATA_DIR", dataDir)
 	t.Setenv("DEALSIEVE_LISTEN", listen)
 	t.Setenv("DEALSIEVE_MYDEALZ_URL", feeds.URL)
