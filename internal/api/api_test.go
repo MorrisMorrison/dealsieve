@@ -279,3 +279,24 @@ func TestSecurityHeaders(t *testing.T) {
 		}
 	}
 }
+
+func TestUndoHideAndJunk(t *testing.T) {
+	h := newHarness(t)
+	h.do(t, "POST", "/api/actions", `{"kind":"hide_deal","deal_id":"mydealz:a"}`)
+	h.do(t, "POST", "/api/actions", `{"kind":"junk","deal_id":"mydealz:a"}`)
+	for _, kind := range []string{"hide_deal", "junk"} {
+		resp, _ := h.do(t, "POST", "/api/actions/undo", `{"kind":"`+kind+`","deal_id":"mydealz:a"}`)
+		if resp.StatusCode != http.StatusNoContent {
+			t.Errorf("undo %s = %d", kind, resp.StatusCode)
+		}
+	}
+	if left, _ := h.st.Actions(context.Background()); len(left) != 0 {
+		t.Errorf("actions left = %+v", left)
+	}
+	if resp, _ := h.do(t, "POST", "/api/actions/undo", `{"kind":"mute_category","deal_id":"mydealz:a"}`); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("undo mute = %d, want 400", resp.StatusCode)
+	}
+	if resp, _ := h.do(t, "POST", "/api/actions/undo", `{"kind":"junk","deal_id":"mydealz:404"}`); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("undo unknown deal = %d, want 404", resp.StatusCode)
+	}
+}

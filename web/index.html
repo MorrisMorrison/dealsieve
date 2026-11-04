@@ -19,9 +19,9 @@
       </div>
       <span id="status" class="status" role="status"></span>
       <span class="spacer"></span>
-      <button id="rules-toggle" class="icon-btn" type="button" aria-pressed="false" aria-label="Rules and your clicks" title="Rules and your clicks">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 4h10M3 8h10M3 12h6"/></svg>
-      </button>
+      <a href="/settings.html" class="icon-btn" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg>
+      </a>
       <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle light and dark theme" title="Toggle light and dark theme">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11A5.5 5.5 0 0 0 8 2.5z" fill="currentColor"/></svg>
       </button>
@@ -40,12 +40,13 @@
       <select id="category" class="select" aria-label="Category"><option value="">All categories</option></select>
     </div>
 
+    <div id="suggestion-banner" class="banner" hidden><span></span><a href="/settings.html#suggestions">Review →</a></div>
+
     <main id="deals-panel" class="split" role="tabpanel" aria-labelledby="tab-passed">
       <ul id="list" class="inbox" role="listbox" aria-label="Deals" tabindex="0"></ul>
       <aside id="detail" class="detail" aria-label="Deal details"></aside>
     </main>
 
-    <main id="rules-panel" class="rules" hidden></main>
   </div>
 
   <template id="item-template">

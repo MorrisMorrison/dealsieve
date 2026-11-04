@@ -1,33 +1,25 @@
 import * as api from './api.js';
 import {
-  fillCategories, renderCounts, renderDetail, renderError, renderList, renderRules, renderStatus,
+  fillCategories, renderCounts, renderDetail, renderError, renderList, renderStatus,
 } from './render.js';
 import { initTheme } from './theme.js';
 
 const list = document.getElementById('list');
 const detail = document.getElementById('detail');
 const dealsPanel = document.getElementById('deals-panel');
-const rulesPanel = document.getElementById('rules-panel');
-const toolbar = document.getElementById('toolbar');
-const rulesToggle = document.getElementById('rules-toggle');
+const banner = document.getElementById('suggestion-banner');
 const category = document.getElementById('category');
 const search = document.getElementById('search');
 const tabs = [...document.querySelectorAll('[role=tab]')];
 const narrow = matchMedia('(max-width: 860px)');
 
-const state = { view: 'passed', deals: [], selectedId: null, rulesOpen: false };
+const state = { view: 'passed', deals: [], selectedId: null };
 
 let loadSeq = 0; // a slow response must not overwrite a newer load
 
 async function load() {
   const seq = ++loadSeq;
   try {
-    if (state.rulesOpen) {
-      const rules = await api.getRules();
-      if (seq !== loadSeq) return;
-      renderRules(rulesPanel, rules, undo);
-      return;
-    }
     const { deals, counts } = await api.getDeals(state.view);
     if (seq !== loadSeq) return;
     state.deals = deals;
@@ -36,7 +28,19 @@ async function load() {
     show();
   } catch (err) {
     if (seq !== loadSeq) return;
-    renderError(state.rulesOpen ? rulesPanel : list, err);
+    renderError(list, err);
+    return;
+  }
+  refreshBanner();
+}
+
+async function refreshBanner() {
+  try {
+    const n = (await api.getSuggestions()).length;
+    banner.hidden = n === 0;
+    banner.querySelector('span').textContent = `${n} suggestion${n === 1 ? '' : 's'} to tidy your feed`;
+  } catch {
+    // The banner is a nicety; the list shows request errors.
   }
 }
 
@@ -55,7 +59,7 @@ function show() {
 
 function showDetail(deals = visible()) {
   const deal = deals.find((d) => d.id === state.selectedId);
-  renderDetail(detail, deal, { onAction: act, onBack: closeSheet });
+  renderDetail(detail, deal, { onAction: act, onUndo: undo, onBack: closeSheet });
   const item = deal && list.querySelector(`[data-id="${CSS.escape(deal.id)}"]`);
   if (item) list.setAttribute('aria-activedescendant', item.id);
   else list.removeAttribute('aria-activedescendant');
@@ -100,12 +104,12 @@ async function act(kind, deal) {
   }
 }
 
-async function undo(id) {
+async function undo(kind, deal) {
   try {
-    await api.deleteAction(id);
+    await api.undoAction(kind, deal.id);
     await load();
   } catch (err) {
-    renderError(rulesPanel, err);
+    renderError(list, err);
   }
 }
 
@@ -130,16 +134,6 @@ function setView(tab) {
   load();
 }
 
-function setRulesOpen(open) {
-  state.rulesOpen = open;
-  rulesToggle.setAttribute('aria-pressed', String(open));
-  rulesPanel.hidden = !open;
-  dealsPanel.hidden = open;
-  toolbar.hidden = open;
-  closeSheet();
-  load();
-}
-
 for (const tab of tabs) {
   tab.addEventListener('click', () => setView(tab));
   tab.addEventListener('keydown', (e) => {
@@ -152,7 +146,7 @@ for (const tab of tabs) {
 }
 
 document.addEventListener('keydown', (e) => {
-  if (state.rulesOpen || e.altKey || e.ctrlKey || e.metaKey) return;
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
   if (e.target.closest('input, select, textarea, [role=tab]')) return;
   if (e.key === 'ArrowDown' || e.key === 'j') { e.preventDefault(); move(1); }
   else if (e.key === 'ArrowUp' || e.key === 'k') { e.preventDefault(); move(-1); }
@@ -162,7 +156,6 @@ document.addEventListener('keydown', (e) => {
   } else if (e.key === 'Escape') closeSheet();
 });
 
-rulesToggle.addEventListener('click', () => setRulesOpen(!state.rulesOpen));
 category.addEventListener('change', show);
 search.addEventListener('input', show);
 narrow.addEventListener('change', closeSheet);
@@ -170,5 +163,5 @@ initTheme(document.getElementById('theme-toggle'));
 
 load();
 refreshStatus();
-setInterval(() => { if (!state.rulesOpen) load(); }, 120_000);
+setInterval(load, 120_000);
 setInterval(refreshStatus, 60_000);

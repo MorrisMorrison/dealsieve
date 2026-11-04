@@ -42,6 +42,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/deals", s.listDeals)
 	mux.HandleFunc("POST /api/actions", s.addAction)
+	mux.HandleFunc("POST /api/actions/undo", s.undoAction)
 	mux.HandleFunc("DELETE /api/actions/{id}", s.deleteAction)
 	mux.HandleFunc("GET /api/settings", s.getSettings)
 	mux.HandleFunc("PUT /api/settings", s.putSettings)
@@ -232,4 +233,42 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// undoAction removes a deal's Hide, or the Junk mark on its fingerprint.
+func (s *Server) undoAction(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Kind   string `json:"kind"`
+		DealID string `json:"deal_id"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if req.Kind != store.ActionHide && req.Kind != store.ActionJunk {
+		writeError(w, http.StatusBadRequest, "only hide_deal and junk can be undone here")
+		return
+	}
+	deal, err := s.Store.GetDeal(r.Context(), req.DealID)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "deal not found")
+		return
+	}
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	value := deal.ID
+	if req.Kind == store.ActionJunk {
+		value = deal.Fingerprint
+	}
+	if _, err := s.Store.DeleteActionsByValue(r.Context(), req.Kind, value); err != nil {
+		s.fail(w, err)
+		return
+	}
+	if _, err := s.Recompute.RecomputeRecent(r.Context()); err != nil {
+		s.fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

@@ -16,8 +16,7 @@ async function request(method, path, body) {
 // Resolves to { deals, counts } where counts has passed/watchlist/blocked.
 export const getDeals = (view) => request('GET', `/api/deals?view=${encodeURIComponent(view)}`);
 export const addAction = (kind, dealId) => request('POST', '/api/actions', { kind, deal_id: dealId });
-export const deleteAction = (id) => request('DELETE', `/api/actions/${encodeURIComponent(id)}`);
-export const getRules = () => request('GET', '/api/rules');
+export const undoAction = (kind, dealId) => request('POST', '/api/actions/undo', { kind, deal_id: dealId });
 export const getStatus = () => request('GET', '/api/status').then((r) => r.feeds);
 
 export const getSettings = () => request('GET', '/api/settings');
