@@ -20,6 +20,8 @@ type Env struct {
 	TelegramToken string
 	NtfyToken     string
 	PublicURL     string
+	JudgeURL      string
+	JudgeAPIKey   string
 	MydealzURL    string
 	PollTrending  time.Duration
 	PollNew       time.Duration
@@ -54,6 +56,7 @@ func FromEnv(getenv func(string) string) (Env, error) {
 		LogFormat:     or("DEALSIEVE_LOG_FORMAT", "text"),
 		TelegramToken: getenv("DEALSIEVE_TELEGRAM_TOKEN"),
 		NtfyToken:     getenv("DEALSIEVE_NTFY_TOKEN"),
+		JudgeAPIKey:   getenv("DEALSIEVE_JUDGE_API_KEY"),
 		MydealzURL:    or("DEALSIEVE_MYDEALZ_URL", "https://www.mydealz.de"),
 		PollTrending:  poll("DEALSIEVE_POLL_TRENDING", 5*time.Minute),
 		PollNew:       poll("DEALSIEVE_POLL_NEW", 2*time.Minute),
@@ -65,6 +68,12 @@ func FromEnv(getenv func(string) string) (Env, error) {
 		} else {
 			e.PublicURL = strings.TrimRight(v, "/")
 		}
+	}
+	judgeURL := or("DEALSIEVE_JUDGE_URL", "https://openrouter.ai/api/v1")
+	if u, err := url.Parse(judgeURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		errs = append(errs, fmt.Errorf("DEALSIEVE_JUDGE_URL: must be an absolute http(s) URL, got %q", judgeURL))
+	} else {
+		e.JudgeURL = strings.TrimRight(judgeURL, "/")
 	}
 	if e.LogFormat != "text" && e.LogFormat != "json" {
 		errs = append(errs, fmt.Errorf("DEALSIEVE_LOG_FORMAT: must be text or json, got %q", e.LogFormat))
