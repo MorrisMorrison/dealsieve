@@ -77,6 +77,10 @@ func TestParsePrice(t *testing.T) {
 		{"GBP 3", 300, "GBP", true},
 		{"$5", 500, "USD", true},
 		{"19,99 zł", 1999, "PLN", true},
+		{"1 504,89€", 150489, "EUR", true},        // dealabs: space thousands
+		{"118 500zł", 11850000, "PLN", true},      // pepper.pl
+		{"1 000 000€", 100000000, "EUR", true},
+		{"1 299,00 €", 129900, "EUR", true}, // no-break space
 		{"Gratis", 0, "", false},
 		{"0€", 0, "", false},
 		{"0,00€", 0, "", false},
@@ -112,7 +116,12 @@ import (
 	"strings"
 )
 
-var amount = regexp.MustCompile(`\d[\d.,]*`)
+var (
+	amount = regexp.MustCompile(`\d[\d.,]*`)
+	// spaceThousands is a space used as thousands separator ("1 504,89€",
+	// "118 500zł"): a digit, a space and exactly three digits.
+	spaceThousands = regexp.MustCompile(`(\d)[ \x{00A0}\x{202F}](\d{3})(\D|$)`)
+)
 
 // currencies is checked in order; "€" before "eur" so "Euro" texts still
 // match, and symbols before codes.
@@ -133,6 +142,10 @@ func ParsePrice(text string) (cents int64, currency string, ok bool) {
 			currency = c.code
 			break
 		}
+	}
+	// Matches don't overlap, so "1 000 000" needs more than one pass.
+	for prev := ""; prev != lower; {
+		prev, lower = lower, spaceThousands.ReplaceAllString(lower, "$1$2$3")
 	}
 	num := strings.TrimRight(amount.FindString(lower), ".,")
 	if currency == "" || num == "" {

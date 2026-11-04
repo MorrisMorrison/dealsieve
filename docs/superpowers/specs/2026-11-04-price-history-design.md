@@ -21,6 +21,7 @@ The shop doesn't matter: "lowest seen" is across all shops. Every stored deal co
 `deals.price` is the source's text (`9€`, `1.449€`, `0,01€`; future Pepper sites: `£12.99`, `£1,299.99`, `12,99 €`). `ParsePrice` turns it into cents plus an ISO currency:
 
 - Currency from the symbol or code anywhere in the text: `€`/`EUR` → `EUR`, `£`/`GBP` → `GBP`, `$`/`USD` → `USD`, `zł`/`PLN` → `PLN`. Any other currency gives no price.
+- Space thousands separators (dealabs `1 504,89€`, pepper.pl `118 500zł`; plain, no-break or narrow no-break space before exactly three digits) are removed first.
 - Number: the first run of digits with `.` and `,`. If the last separator is followed by exactly 1–2 digits it is the decimal separator; any other separators are thousands separators. So `1.449` → 1449.00, `1,299.99` → 1299.99, `0,01` → 0.01, `12,5` → 12.50, `1.000.000` → 1,000,000.00.
 - No price: no currency, no digits, a result ≤ 0 (freebies, `Gratis`, `0€`), or anything else that doesn't parse. Such deals get no history and don't count as anyone's history.
 - Only deals in the same currency are compared.
