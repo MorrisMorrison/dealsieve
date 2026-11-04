@@ -52,3 +52,18 @@ function minutesSince(iso, now) {
   if (Number.isNaN(t)) return null;
   return Math.round((now - t) / 60000);
 }
+
+// "40 €" / "£12.50": whole amounts without decimals.
+export function money(cents, currency, locale) {
+  const digits = cents % 100 === 0 ? 0 : 2;
+  return new Intl.NumberFormat(locale, {
+    style: 'currency', currency, minimumFractionDigits: digits, maximumFractionDigits: digits,
+  }).format(cents / 100);
+}
+
+// "Aug 2026". UTC, so the month doesn't depend on the viewer's zone at a month's edge.
+export function monthYear(iso, locale) {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (Number.isNaN(t)) return '';
+  return new Date(t).toLocaleDateString(locale, { month: 'short', year: 'numeric', timeZone: 'UTC' });
+}

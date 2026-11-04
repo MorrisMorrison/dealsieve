@@ -1,5 +1,6 @@
 import { areaPoints, sparkPoints } from './sparkline.js';
-import { age, ago, clock, heat, ratingMark, sentence } from './format.js';
+import { age, ago, clock, heat, monthYear, ratingMark, sentence } from './format.js';
+import { historyChip, historyLine } from './history.js';
 
 // Blocked deals whose first reason came from a click can be undone on the spot.
 const UNDO_BY_REASON = {
@@ -56,6 +57,12 @@ export function renderList(list, deals, selectedId, onSelect) {
       chip.textContent = '★ watchlist';
       chip.classList.add('watch');
     }
+    const history = historyChip(deal.price_history);
+    if (history) {
+      const priceChip = item.querySelector('.price-chip');
+      priceChip.textContent = history.text;
+      priceChip.classList.add(history.cls);
+    }
     const temp = item.querySelector('.temp');
     temp.textContent = deal.temperature == null ? '' : `${deal.temperature}°`;
     if (heat(deal.temperature)) temp.classList.add(heat(deal.temperature));
@@ -91,6 +98,8 @@ export function renderDetail(panel, deal, { onAction, onUndo, onBack }) {
     spark.setAttribute('hidden', '');
     node.querySelector('.heat-now').textContent = 'curve after the next poll';
   }
+
+  renderHistory(node.querySelector('.history'), deal.price_history);
 
   const blocked = deal.decision === 'block';
   node.querySelector('.why-label').textContent = blocked ? 'Why it’s blocked' : 'Why it’s here';
@@ -136,6 +145,25 @@ export function renderDetail(panel, deal, { onAction, onUndo, onBack }) {
     button.addEventListener('click', () => onAction(kind, deal));
   }
   panel.replaceChildren(node);
+}
+
+// Price history: a summary and the matched deals, so every match can be checked.
+function renderHistory(section, history) {
+  if (!history) return;
+  section.hidden = false;
+  section.querySelector('.history-line').textContent = historyLine(history);
+  section.querySelector('summary').textContent = `Matched deals (${history.count})`;
+  section.querySelector('ul').replaceChildren(...history.matches.map((m) => {
+    const link = el('a', '', m.title);
+    link.href = m.url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    const li = el('li');
+    li.append(el('span', 'price num', m.price), ' ',
+      el('span', 'meta', [m.merchant, monthYear(m.first_seen)].filter(Boolean).join(' · ')), el('br'), link);
+    return li;
+  }));
+  section.querySelector('.history-more').hidden = history.count <= history.matches.length;
 }
 
 export function renderStatus(node, feeds) {
