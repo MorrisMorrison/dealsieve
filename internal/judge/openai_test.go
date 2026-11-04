@@ -120,6 +120,9 @@ func TestReasonUnreachable(t *testing.T) {
 	if Reason(err) != "couldn't reach the server" {
 		t.Fatalf("Reason = %q (%v)", Reason(err), err)
 	}
+	if !Retryable(err) {
+		t.Errorf("unreachable server should be retryable")
+	}
 	if Reason(ErrDisabled) != "judge is off" {
 		t.Errorf("Reason(ErrDisabled) = %q", Reason(ErrDisabled))
 	}

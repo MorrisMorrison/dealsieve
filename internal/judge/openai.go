@@ -89,13 +89,18 @@ func (o *OpenAI) Judge(ctx context.Context, d Deal) (Opinion, error) {
 	return Parse(out.Choices[0].Message.Content)
 }
 
-// Retryable reports whether err means "back off and try later".
+// Retryable reports whether err means "back off and try later": a busy or
+// rate-limiting server, a timeout, or no response at all (server down).
 func Retryable(err error) bool {
 	var he *HTTPError
 	if errors.As(err, &he) {
 		return he.Retryable()
 	}
-	return isTimeout(err)
+	if err == nil || errors.Is(err, context.Canceled) {
+		return false
+	}
+	var ne net.Error
+	return isTimeout(err) || errors.As(err, &ne)
 }
 
 func isTimeout(err error) bool {
