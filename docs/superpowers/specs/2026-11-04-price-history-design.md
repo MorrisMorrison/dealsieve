@@ -4,7 +4,7 @@ Status: approved, being implemented.
 
 ## Goal
 
-When a deal comes in, show whether it is really a good price compared with what dealsieve has already seen for the same product: "Lowest seen: 179€ at Example Shop, Aug 2026 · €40 more than now" or "Best price in 180 days". It uses only dealsieve's own stored deals (kept 180 days) and nothing else. It is **information only**: it never changes a verdict, a score, a notification or the digest.
+When a deal comes in, show whether it is really a good price compared with what dealsieve has already seen for the same product: "Lowest seen: 179€ at Example Shop, Aug 2026 · now €40 more" or "Best price in 180 days". It uses only dealsieve's own stored deals (kept 180 days) and nothing else. It is **information only**: it never changes a verdict, a score, a notification or the digest.
 
 ## Same product
 
@@ -85,7 +85,7 @@ CREATE INDEX deal_products_models ON deal_products (models, currency);
 - **List chip** (a second chip after the existing block/watchlist chip): `Best price` (green, `--ok`) for `best`, or `+40 €` (muted) for `above`. Nothing without history. Blocked deals get it too.
 - **Detail panel**, a "Price history" section under the temperature:
   - `best`: "Best price in 180 days · seen N× before".
-  - `above`: "Lowest seen: 179€ at Example Shop, Aug 2026 · 40 € more than now".
+  - `above`: "Lowest seen: 179€ at Example Shop, Aug 2026 · now 40 € more".
   - A `<details>` "Matched deals (N)" lists the matches (price, shop, month and year, title linked to the deal), so the match is always explainable. If N > 10, the list says "showing the 10 cheapest".
   - The section is hidden without history.
 - Money is formatted in `format.js` by `money(cents, currency, locale)` with `Intl.NumberFormat` (the page passes the browser's locale; tests pass a fixed one). The lowest price is shown as the source wrote it. Months use `monthYear(iso, locale)`. Both get node tests.

@@ -14,5 +14,5 @@ export function historyLine(h, locale) {
     return `Best price in 180 days · ${h.count === 1 ? 'seen once before' : `seen ${h.count}× before`}`;
   }
   const where = h.lowest.merchant ? ` at ${h.lowest.merchant}` : '';
-  return `Lowest seen: ${h.lowest.price}${where}, ${monthYear(h.lowest.first_seen, locale)} · ${money(h.diff_cents, h.currency, locale)} more than now`;
+  return `Lowest seen: ${h.lowest.price}${where}, ${monthYear(h.lowest.first_seen, locale)} · now ${money(h.diff_cents, h.currency, locale)} more`;
 }

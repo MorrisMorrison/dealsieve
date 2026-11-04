@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Show for each deal whether its price is the lowest dealsieve has seen for the same product ("Lowest seen: 179€ at Example Shop, Aug 2026 · 40 € more than now" / "Best price"), in the detail panel and as a list chip. Information only.
+**Goal:** Show for each deal whether its price is the lowest dealsieve has seen for the same product ("Lowest seen: 179€ at Example Shop, Aug 2026 · now 40 € more" / "Best price"), in the detail panel and as a list chip. Information only.
 
 **Architecture:** A new pure package `internal/product` parses prices and decides "same product" from model codes, sizes and title words. The store keeps a `deal_products` row (model-code key, currency, cents) per deal, written by the pipeline on ingest and rebuilt at startup. `/api/deals` fetches candidates by model key and adds `price_history`. The page renders it with pure helpers in `history.js`.
 
@@ -1172,8 +1172,8 @@ test('historyLine', () => {
   assert.equal(historyLine(undefined), '');
   assert.equal(historyLine(best, 'en-GB'), 'Best price in 180 days · seen once before');
   assert.equal(historyLine({ ...best, count: 4 }, 'en-GB'), 'Best price in 180 days · seen 4× before');
-  assert.equal(historyLine(above, 'en-GB'), 'Lowest seen: 549€ at Example Air, Aug 2026 · €40 more than now');
-  assert.equal(historyLine({ ...above, lowest: { ...lowest, merchant: '' } }, 'en-GB'), 'Lowest seen: 549€, Aug 2026 · €40 more than now');
+  assert.equal(historyLine(above, 'en-GB'), 'Lowest seen: 549€ at Example Air, Aug 2026 · now €40 more');
+  assert.equal(historyLine({ ...above, lowest: { ...lowest, merchant: '' } }, 'en-GB'), 'Lowest seen: 549€, Aug 2026 · now €40 more');
 });
 ```
 
@@ -1217,7 +1217,7 @@ export function historyLine(h, locale) {
     return `Best price in 180 days · ${h.count === 1 ? 'seen once before' : `seen ${h.count}× before`}`;
   }
   const where = h.lowest.merchant ? ` at ${h.lowest.merchant}` : '';
-  return `Lowest seen: ${h.lowest.price}${where}, ${monthYear(h.lowest.first_seen, locale)} · ${money(h.diff_cents, h.currency, locale)} more than now`;
+  return `Lowest seen: ${h.lowest.price}${where}, ${monthYear(h.lowest.first_seen, locale)} · now ${money(h.diff_cents, h.currency, locale)} more`;
 }
 ```
 
@@ -1335,7 +1335,7 @@ In the `internal/store/` row, add "price-history index (`deal_products`)" to the
 
 For a deal whose title has a model code (`S24`, `7800X3D`), dealsieve looks for other stored deals of the same product, at any shop, in the last 180 days: the same model codes, the same size when both titles name one (`128GB` vs `256GB` never match), and mostly the same other words (so a case "for Galaxy S24" doesn't count as the phone). Prices are compared only within one currency.
 
-The deal's panel then shows either **Best price in 180 days** or the lowest price seen ("Lowest seen: 549€ at Example Shop, Aug 2026 · 40 € more than now"), with the matched deals listed so you can check them. The list shows a **Best price** or **+40 €** chip. Price history is information only: it never blocks or ranks a deal, and deals without a model code or a price have none.
+The deal's panel then shows either **Best price in 180 days** or the lowest price seen ("Lowest seen: 549€ at Example Shop, Aug 2026 · now 40 € more"), with the matched deals listed so you can check them. The list shows a **Best price** or **+40 €** chip. Price history is information only: it never blocks or ranks a deal, and deals without a model code or a price have none.
 ```
 
 In "What dealsieve does not do" add:
