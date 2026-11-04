@@ -9,7 +9,7 @@ dealsieve is a small self-hosted filter for deal feeds. One Go binary polls a so
 | Path | Responsibility |
 |---|---|
 | `cmd/dealsieve/` | `main.go`: wiring only (config, store, pipeline, poller, prune loop, HTTP server, graceful shutdown) and the `healthcheck` subcommand used by the image's `HEALTHCHECK` |
-| `internal/config/` | `DEALSIEVE_*` env vars only (paths, poll intervals, secrets); no YAML |
+| `internal/config/` | `DEALSIEVE_*` env vars only (paths, poll intervals, secrets, `DEALSIEVE_PUBLIC_URL`); no YAML |
 | `internal/settings/` | The user settings document (JSON): `Defaults`, `Validate` (all problems keyed by field path), `Summarize` (change summaries), conversions for the rules engine and notifiers |
 | `internal/settingsvc/` | Saves, undoes and applies settings (versions, conflict check, swap into the pipeline, recompute) and serves suggestions |
 | `internal/suggest/` | Pure: mute suggestions from Hide/Junk clicks, settings and dismissals |
@@ -18,6 +18,7 @@ dealsieve is a small self-hosted filter for deal feeds. One Go binary polls a so
 | `internal/rules/` | The rule engine: `Evaluate(Deal, Facts) Result` — pure, no I/O |
 | `internal/pipeline/` | Ingest (store → evaluate → save verdict → notify), `RecomputeRecent` after a user action, `Prune`; serialised by one mutex |
 | `internal/poller/` | One loop per feed with its own interval, backoff on failures (capped at 30 min), per-feed status for the page |
+| `internal/digest/` | Daily digest: `Due`, `Compose`, and the `Runner` that sends due digests every minute outside the pipeline lock; per-channel window ends in `digest_state`, deals already listed per channel in `digest_sent` |
 | `internal/notify/` | `Notifier` interface, ntfy and Telegram implementations |
 | `internal/store/` | SQLite (modernc, pure Go): deals, temperature snapshots, verdicts, actions, notification bookkeeping; numbered migrations in `migrations/` tracked by `PRAGMA user_version` |
 | `internal/api/` | `net/http` mux: JSON API (`/api/deals`, `/api/actions`, `/api/settings*`, `/api/suggestions*`, `/api/categories`, `/api/status`), `/health`, the embedded pages |

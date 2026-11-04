@@ -49,3 +49,26 @@ func TestErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestPublicURL(t *testing.T) {
+	env := func(v string) func(string) string {
+		return func(k string) string {
+			if k == "DEALSIEVE_PUBLIC_URL" {
+				return v
+			}
+			return ""
+		}
+	}
+	e, err := FromEnv(env("https://deals.example.com/"))
+	if err != nil || e.PublicURL != "https://deals.example.com" {
+		t.Errorf("PublicURL = %q, %v", e.PublicURL, err)
+	}
+	if e, err := FromEnv(env("")); err != nil || e.PublicURL != "" {
+		t.Errorf("unset = %q, %v", e.PublicURL, err)
+	}
+	for _, bad := range []string{"deals.example.com", "ftp://x.example.com", "https://"} {
+		if _, err := FromEnv(env(bad)); err == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MorrisMorrison/dealsieve/internal/config"
+	"github.com/MorrisMorrison/dealsieve/internal/digest"
 	"github.com/MorrisMorrison/dealsieve/internal/poller"
 	"github.com/MorrisMorrison/dealsieve/internal/settingsvc"
 	"github.com/MorrisMorrison/dealsieve/internal/store"
@@ -26,11 +27,16 @@ type Recomputer interface {
 	RecomputeRecent(ctx context.Context) (int, error)
 }
 
+type DigestTester interface {
+	SendTest(ctx context.Context) []digest.TestResult
+}
+
 type Server struct {
 	Store     *store.Store
 	Recompute Recomputer
 	Status    func() []poller.Status
 	Settings  *settingsvc.Service
+	Digest    DigestTester
 	Env       config.Env
 	HTTP      *http.Client
 	Assets    fs.FS
@@ -49,6 +55,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/settings/undo", s.undoSettings)
 	mux.HandleFunc("GET /api/settings/history", s.settingsHistory)
 	mux.HandleFunc("POST /api/settings/test", s.testChannel)
+	mux.HandleFunc("POST /api/settings/digest/test", s.testDigest)
 	mux.HandleFunc("GET /api/suggestions", s.suggestions)
 	mux.HandleFunc("POST /api/suggestions/apply", s.applySuggestion)
 	mux.HandleFunc("POST /api/suggestions/dismiss", s.dismissSuggestion)

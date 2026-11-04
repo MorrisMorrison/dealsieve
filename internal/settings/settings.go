@@ -11,8 +11,10 @@ import (
 	"io"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
+	_ "time/tzdata" // the distroless image has no zoneinfo; the digest needs time zones
 )
 
 // MaxWindowDays matches how long deals are kept: a longer window would
@@ -25,6 +27,43 @@ type Settings struct {
 	Channels    map[string]Channel `json:"channels"`
 	Notify      []NotifyRule       `json:"notify"`
 	Suggestions Suggestions        `json:"suggestions"`
+	Digest      Digest             `json:"digest"`
+}
+
+// Digest is the daily summary: at Time in Timezone, each channel gets the
+// watchlist hits and the Top other passed deals that are new since its
+// previous digest.
+type Digest struct {
+	Enabled  bool     `json:"enabled"`
+	Time     string   `json:"time"`
+	Timezone string   `json:"timezone"`
+	Top      int      `json:"top"`
+	Channels []string `json:"channels"`
+}
+
+// MaxDigestTop keeps a digest inside one notification.
+const MaxDigestTop = 25
+
+// Location is the digest's time zone, or UTC if it doesn't load (only
+// possible for unvalidated settings).
+func (d Digest) Location() *time.Location {
+	if loc, err := time.LoadLocation(d.Timezone); err == nil && d.Timezone != "" && d.Timezone != "Local" {
+		return loc
+	}
+	return time.UTC
+}
+
+// ParseClock reads a 24-hour "HH:MM" time.
+func ParseClock(s string) (hour, minute int, ok bool) {
+	if len(s) != 5 || s[2] != ':' {
+		return 0, 0, false
+	}
+	h, err1 := strconv.Atoi(s[:2])
+	m, err2 := strconv.Atoi(s[3:])
+	if err1 != nil || err2 != nil || h < 0 || h > 23 || m < 0 || m > 59 {
+		return 0, 0, false
+	}
+	return h, m, true
 }
 
 type Rules struct {
@@ -111,12 +150,15 @@ func Defaults() Settings {
 		Channels:    map[string]Channel{},
 		Notify:      []NotifyRule{},
 		Suggestions: Suggestions{MinCount: 3, WindowDays: 30},
+		Digest:      Digest{Time: "18:00", Timezone: "Europe/Berlin", Top: 10, Channels: []string{}},
 	}
 }
 
 // Decode parses a settings document strictly: unknown keys are errors.
 func Decode(data []byte) (Settings, error) {
-	var s Settings
+	// Start from the defaults so documents saved before a setting existed
+	// get its default value.
+	s := Defaults()
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&s); err != nil {
@@ -155,6 +197,9 @@ func (s Settings) Normalize() Settings {
 	for _, n := range s.Notify {
 		out.Notify = append(out.Notify, NotifyRule{When: n.When, Channels: cleanList(n.Channels)})
 	}
+	out.Digest.Time = strings.TrimSpace(s.Digest.Time)
+	out.Digest.Timezone = strings.TrimSpace(s.Digest.Timezone)
+	out.Digest.Channels = cleanList(s.Digest.Channels)
 	return out
 }
 
@@ -223,6 +268,24 @@ func (s Settings) Validate() map[string]string {
 	}
 	if w := s.Suggestions.WindowDays; w < 1 || w > MaxWindowDays {
 		errs["suggestions.window_days"] = fmt.Sprintf("must be between 1 and %d days", MaxWindowDays)
+	}
+	d := s.Digest
+	if _, _, ok := ParseClock(d.Time); !ok {
+		errs["digest.time"] = "must be a time like 18:00"
+	}
+	if _, err := time.LoadLocation(d.Timezone); err != nil || d.Timezone == "" || d.Timezone == "Local" {
+		errs["digest.timezone"] = "must be a time zone like Europe/Berlin"
+	}
+	if d.Top < 1 || d.Top > MaxDigestTop {
+		errs["digest.top"] = fmt.Sprintf("must be between 1 and %d", MaxDigestTop)
+	}
+	if d.Enabled && len(d.Channels) == 0 {
+		errs["digest.channels"] = "needs at least one channel"
+	}
+	for i, c := range d.Channels {
+		if _, ok := s.Channels[c]; !ok {
+			errs[fmt.Sprintf("digest.channels[%d]", i)] = fmt.Sprintf("unknown channel %q", c)
+		}
 	}
 	return errs
 }

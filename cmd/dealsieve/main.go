@@ -17,9 +17,11 @@ import (
 
 	"github.com/MorrisMorrison/dealsieve/internal/api"
 	"github.com/MorrisMorrison/dealsieve/internal/config"
+	"github.com/MorrisMorrison/dealsieve/internal/digest"
 	"github.com/MorrisMorrison/dealsieve/internal/fingerprint"
 	"github.com/MorrisMorrison/dealsieve/internal/pipeline"
 	"github.com/MorrisMorrison/dealsieve/internal/poller"
+	"github.com/MorrisMorrison/dealsieve/internal/settings"
 	"github.com/MorrisMorrison/dealsieve/internal/settingsvc"
 	"github.com/MorrisMorrison/dealsieve/internal/source"
 	"github.com/MorrisMorrison/dealsieve/internal/source/mydealz"
@@ -101,12 +103,17 @@ func run(ctx context.Context) error {
 	var wg sync.WaitGroup
 	wg.Go(func() { pl.Run(ctx) })
 	wg.Go(func() { pruneLoop(ctx, pipe, log) })
+	dg := &digest.Runner{
+		Store: st, Settings: func() settings.Settings { return svc.Current().Settings },
+		Env: env, HTTP: notifyClient, Now: time.Now, Log: log,
+	}
+	wg.Go(func() { dg.Run(ctx) })
 
 	srv := &http.Server{
 		Addr: env.Listen,
 		Handler: (&api.Server{
 			Store: st, Recompute: pipe, Status: pl.Status,
-			Settings: svc, Env: env, HTTP: notifyClient,
+			Settings: svc, Digest: dg, Env: env, HTTP: notifyClient,
 			Assets: web.Assets, Log: log, Now: time.Now,
 		}).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,

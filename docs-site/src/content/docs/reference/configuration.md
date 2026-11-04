@@ -55,6 +55,20 @@ Channels and notify rules; see [Notifications](/dealsieve/guide/notifications/) 
 
 A Telegram channel while `DEALSIEVE_TELEGRAM_TOKEN` is unset is not an error: the page shows a warning on the channel, and sends fail (logged and retried like any other failure).
 
+### Daily digest
+
+One message a day per channel with the deals that passed, were active since the previous digest and weren't in an earlier digest for that channel (the first digest looks back 24 hours); see [How it works](/dealsieve/guide/how-it-works/#daily-digest) for what it contains.
+
+| Setting | Default | Validation |
+|---|---|---|
+| Enabled | off | |
+| Time | `18:00` | `HH:MM`, 24-hour clock. |
+| Time zone | `Europe/Berlin` | An IANA zone name such as `Europe/Berlin` or `UTC`. |
+| Top | `10` | 1 to 25. How many deals follow the watchlist recap. |
+| Channels | empty | At least one when the digest is enabled; every channel must exist. |
+
+**Send test digest** sends a digest now, using the saved settings (not unsaved edits). It does not count as the day's digest and doesn't mark any deal as sent, so the scheduled one still goes out with the same deals.
+
 ### Suggestions
 
 | Setting | Default | Validation |
@@ -82,6 +96,7 @@ Every save is stored as a version with a summary of what changed (for example `A
 | `DEALSIEVE_TELEGRAM_TOKEN` | | Bot token, needed for Telegram channels |
 | `DEALSIEVE_NTFY_TOKEN` | | Access token for a protected ntfy server |
 | `DEALSIEVE_MYDEALZ_URL` | `https://www.mydealz.de` | Feed host (for tests) |
+| `DEALSIEVE_PUBLIC_URL` | unset | Optional. The address you open dealsieve at, as an absolute http(s) URL, e.g. `https://deals.example.com`. The daily digest uses it as its link to the inbox (the click target of the ntfy message, the last line of the Telegram message). |
 
 Secrets live only in environment variables, never in the database or on the page. Invalid values (an interval below one minute, a log format other than `text` or `json`) stop the start-up with a list of problems.
 

@@ -1,9 +1,9 @@
 import {
   applySuggestion, dismissSuggestion, getCategories, getHistory, getSettings, getSuggestions,
-  putSettings, testChannel, undoSettings,
+  putSettings, testChannel, testDigest, undoSettings,
 } from './api.js';
 import { initTheme } from './theme.js';
-import { addTo, changeCount, clone, nextChannelName, removeFrom } from './settings-model.js';
+import { addTo, changeCount, clone, nextChannelName, removeFrom, TIMEZONES } from './settings-model.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -335,6 +335,7 @@ function channelCard(name) {
           click: () => {
             delete st.draft.channels[name];
             for (const rule of st.draft.notify) rule.channels = removeFrom(rule.channels, name);
+            st.draft.digest.channels = removeFrom(st.draft.digest.channels, name);
             touch('notifications');
           },
         },
@@ -420,6 +421,71 @@ function ruleRow(rule, i) {
     errs.length ? h('div', { style: 'flex-basis:100%' }, errs) : null);
 }
 
+function digestBlock() {
+  const d = st.draft.digest;
+  const pred = under('digest');
+  const bad = (field) => Object.keys(st.errors).some((p) => p === `digest.${field}` || p.startsWith(`digest.${field}[`));
+  const free = Object.keys(st.draft.channels).filter((c) => !d.channels.includes(c));
+  const status = h('span', { className: 'status-ok', hidden: true });
+  const test = h('button', {
+    type: 'button', className: 'btn small', textContent: 'Send test digest',
+    on: {
+      click: async () => {
+        test.disabled = true;
+        test.textContent = 'Sending…';
+        status.hidden = true;
+        let text;
+        let ok = false;
+        try {
+          const results = await testDigest();
+          ok = results.every((r) => r.ok);
+          text = results.map((r) => `${r.channel}: ${r.ok ? '✓ delivered' : `✗ ${r.error || 'failed'}`}`).join(' · ');
+        } catch (err) {
+          text = `✗ ${err.message}`;
+        }
+        test.textContent = 'Send test digest';
+        test.disabled = false;
+        status.hidden = false;
+        status.className = ok ? 'status-ok' : 'status-err';
+        status.textContent = text;
+      },
+    },
+  });
+  return h('div', { className: 'field' },
+    h('span', { className: 'label', textContent: 'Daily digest' }),
+    h('p', { className: 'help', textContent: 'Once a day: your watchlist hits and the top deals that are new since the previous digest. Skipped when there is nothing new. The instant notifications above keep working.' }),
+    h('label', { className: 'row' },
+      h('input', { type: 'checkbox', checked: d.enabled, on: { change: (e) => { d.enabled = e.target.checked; clearErrors(pred); updateBar(); } } }),
+      ' Send a daily digest'),
+    h('div', { className: 'row' },
+      h('span', { className: 'kw', textContent: 'at' }),
+      h('input', {
+        type: 'time', value: d.time, className: bad('time') ? 'invalid' : '', attrs: { 'aria-label': 'Digest time' }, style: 'width:auto',
+        on: { input: (e) => { d.time = e.target.value; clearErrors(pred, e.target); updateBar(); } },
+      }),
+      h('span', { className: 'kw', textContent: 'time zone' }),
+      h('input', {
+        type: 'text', value: d.timezone, className: bad('timezone') ? 'invalid' : '', style: 'width:14em',
+        attrs: { 'aria-label': 'Digest time zone', list: 'timezones' },
+        on: { input: (e) => { d.timezone = e.target.value; clearErrors(pred, e.target); updateBar(); } },
+      }),
+      h('datalist', { id: 'timezones' }, TIMEZONES.map((z) => h('option', { value: z }))),
+      h('span', { className: 'kw', textContent: 'top' }),
+      numberInput(d.top, (v) => { d.top = v; }, { min: 1, label: 'Deals in the digest', width: '70px', pred: (p) => p === 'digest.top' })),
+    h('div', { className: 'row' },
+      h('span', { className: 'kw', textContent: 'send to' }),
+      d.channels.map((c) => h('span', { className: 'chip' }, c, h('button', {
+        type: 'button', textContent: '×', attrs: { 'aria-label': `Stop sending the digest to ${c}` },
+        on: { click: () => { d.channels = removeFrom(d.channels, c); clearErrors(pred); touch('notifications'); } },
+      }))),
+      free.length ? h('select', {
+        attrs: { 'aria-label': 'Add a channel to the digest' }, style: 'width:auto',
+        on: { change: (e) => { if (!e.target.value) return; d.channels = [...d.channels, e.target.value]; clearErrors(pred); touch('notifications'); } },
+      }, h('option', { value: '', textContent: '+ channel' }), free.map((c) => h('option', { value: c, textContent: c }))) : null),
+    errorNodes(pred),
+    h('div', { className: 'row' }, test, h('span', { className: 'help', textContent: 'Uses the saved settings.' }), status));
+}
+
 function renderNotifications() {
   const names = Object.keys(st.draft.channels);
   return [
@@ -434,6 +500,7 @@ function renderNotifications() {
           type: 'button', className: 'btn small', textContent: '+ Add rule',
           on: { click: () => { st.draft.notify.push({ when: 'watchlist', channels: [] }); touch('notifications'); } },
         })))),
+    digestBlock(),
   ];
 }
 

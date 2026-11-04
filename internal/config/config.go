@@ -6,6 +6,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -17,6 +19,7 @@ type Env struct {
 	LogFormat     string
 	TelegramToken string
 	NtfyToken     string
+	PublicURL     string
 	MydealzURL    string
 	PollTrending  time.Duration
 	PollNew       time.Duration
@@ -54,6 +57,14 @@ func FromEnv(getenv func(string) string) (Env, error) {
 		MydealzURL:    or("DEALSIEVE_MYDEALZ_URL", "https://www.mydealz.de"),
 		PollTrending:  poll("DEALSIEVE_POLL_TRENDING", 5*time.Minute),
 		PollNew:       poll("DEALSIEVE_POLL_NEW", 2*time.Minute),
+	}
+	if v := getenv("DEALSIEVE_PUBLIC_URL"); v != "" {
+		u, err := url.Parse(v)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			errs = append(errs, fmt.Errorf("DEALSIEVE_PUBLIC_URL: must be an absolute http(s) URL, got %q", v))
+		} else {
+			e.PublicURL = strings.TrimRight(v, "/")
+		}
 	}
 	if e.LogFormat != "text" && e.LogFormat != "json" {
 		errs = append(errs, fmt.Errorf("DEALSIEVE_LOG_FORMAT: must be text or json, got %q", e.LogFormat))

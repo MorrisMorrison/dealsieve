@@ -150,3 +150,77 @@ func TestWarnings(t *testing.T) {
 		t.Errorf("without token: %v", w)
 	}
 }
+
+func TestDigestDefaultsAndOldDocuments(t *testing.T) {
+	d := Defaults().Digest
+	if d.Enabled || d.Time != "18:00" || d.Timezone != "Europe/Berlin" || d.Top != 10 || d.Channels == nil || len(d.Channels) != 0 {
+		t.Errorf("digest defaults = %+v", d)
+	}
+	// Documents saved before the digest existed have no "digest" key.
+	s, err := Decode([]byte(`{"watchlist":["oled"],"rules":{"min_temperature":50,"category_overrides":{},"muted_categories":[],"muted_merchants":[],"block_keywords":[],"recurrence":{"window_days":90,"max_seen":2}},"channels":{},"notify":[],"suggestions":{"min_count":3,"window_days":30}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Digest.Time != "18:00" || s.Rules.MinTemperature != 50 || !slices.Equal(s.Watchlist, []string{"oled"}) {
+		t.Errorf("decoded = %+v", s)
+	}
+	if errs := s.Normalize().Validate(); len(errs) != 0 {
+		t.Errorf("old document invalid: %v", errs)
+	}
+}
+
+func TestParseClock(t *testing.T) {
+	for in, want := range map[string][2]int{"18:00": {18, 0}, "07:05": {7, 5}, "00:00": {0, 0}, "23:59": {23, 59}} {
+		if h, m, ok := ParseClock(in); !ok || h != want[0] || m != want[1] {
+			t.Errorf("ParseClock(%q) = %d, %d, %v", in, h, m, ok)
+		}
+	}
+	for _, in := range []string{"", "7:05", "24:00", "12:60", "12-00", "12:00:00", "ab:cd"} {
+		if _, _, ok := ParseClock(in); ok {
+			t.Errorf("ParseClock(%q) ok", in)
+		}
+	}
+}
+
+func TestValidateDigest(t *testing.T) {
+	tests := map[string]struct {
+		edit func(*Digest)
+		key  string
+	}{
+		"bad time":        {func(d *Digest) { d.Time = "25:00" }, "digest.time"},
+		"unknown zone":    {func(d *Digest) { d.Timezone = "Mars/Olympus" }, "digest.timezone"},
+		"empty zone":      {func(d *Digest) { d.Timezone = "" }, "digest.timezone"},
+		"local zone":      {func(d *Digest) { d.Timezone = "Local" }, "digest.timezone"},
+		"top too small":   {func(d *Digest) { d.Top = 0 }, "digest.top"},
+		"top too big":     {func(d *Digest) { d.Top = 26 }, "digest.top"},
+		"unknown channel": {func(d *Digest) { d.Channels = []string{"phone", "nope"} }, "digest.channels[1]"},
+		"on, no channels": {func(d *Digest) { d.Enabled = true; d.Channels = []string{} }, "digest.channels"},
+	}
+	for name, tc := range tests {
+		s := valid()
+		tc.edit(&s.Digest)
+		if errs := s.Validate(); errs[tc.key] == "" {
+			t.Errorf("%s: errors %v, want %s", name, errs, tc.key)
+		}
+	}
+	s := valid()
+	s.Digest = Digest{Enabled: true, Time: "07:30", Timezone: "America/New_York", Top: 25, Channels: []string{"tg"}}
+	if errs := s.Validate(); len(errs) != 0 {
+		t.Errorf("valid digest: %v", errs)
+	}
+	if loc := s.Digest.Location(); loc.String() != "America/New_York" {
+		t.Errorf("location = %v", loc)
+	}
+	if loc := (Digest{Timezone: "Mars/Olympus"}).Location(); loc != time.UTC {
+		t.Errorf("bad zone location = %v", loc)
+	}
+}
+
+func TestNormalizeDigest(t *testing.T) {
+	s := valid()
+	s.Digest = Digest{Time: " 18:00 ", Timezone: " Europe/Berlin ", Top: 10, Channels: []string{" phone ", "phone", ""}}
+	n := s.Normalize().Digest
+	if n.Time != "18:00" || n.Timezone != "Europe/Berlin" || !slices.Equal(n.Channels, []string{"phone"}) {
+		t.Errorf("normalized = %+v", n)
+	}
+}

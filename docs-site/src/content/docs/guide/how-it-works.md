@@ -58,6 +58,10 @@ Watchlist entries are checked against every new deal as soon as it is posted, be
 
 Hits are listed in their own tab and can trigger [notifications](/dealsieve/guide/notifications/).
 
+## Daily digest
+
+Optionally, dealsieve sends one digest a day per channel, at the time and in the time zone you set. It lists the deals that passed, were active (seen in a feed) since the previous digest, and weren't in an earlier digest for that channel; a channel's first digest looks back 24 hours. Deals usually pass hours after dealsieve first sees them, so a deal that heats up after one digest is in the next. First comes a recap of your watchlist hits, newest first and at most 10, then the top N other passed deals by temperature. Each deal appears once per channel. When nothing is new, no digest is sent. If a send fails it is retried every minute; if it keeps failing, the next day's digest covers both days. The digest is separate from the instant notifications, which keep working as before.
+
 ## Your feedback
 
 Every deal has buttons to open it, *Hide*, *Junk*, *Mute category* and *Mute shop*. *Junk* blocks everything that looks like that deal (same fingerprint) from then on. *Mute shop* and *Mute category* add the shop or category to your settings, so they show up in the Settings page and its history.

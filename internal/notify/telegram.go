@@ -19,6 +19,9 @@ type Telegram struct {
 }
 
 func (t *Telegram) Send(ctx context.Context, m Message) error {
+	if m.HTML != "" {
+		return t.call(ctx, "sendMessage", map[string]string{"chat_id": t.ChatID, "text": m.HTML, "parse_mode": "HTML"})
+	}
 	text := m.Title + "\n" + m.Body
 	if m.ClickURL != "" {
 		text += "\n" + m.ClickURL

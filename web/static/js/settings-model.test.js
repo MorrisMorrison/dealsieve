@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addTo, changeCount, clone, nextChannelName, removeFrom } from './settings-model.js';
+import { addTo, changeCount, clone, nextChannelName, removeFrom, TIMEZONES } from './settings-model.js';
 
 const base = {
   watchlist: ['oled'],
@@ -45,4 +45,20 @@ test('changeCount ignores case-only edits of list entries, like the server summa
 test('nextChannelName picks a free lowercase name', () => {
   assert.equal(nextChannelName({}, 'ntfy'), 'ntfy');
   assert.equal(nextChannelName({ ntfy: {}, 'ntfy-2': {} }, 'ntfy'), 'ntfy-3');
+});
+
+test('changeCount counts a digest change once', () => {
+  const saved = {
+    ...base,
+    digest: { enabled: false, time: '18:00', timezone: 'Europe/Berlin', top: 10, channels: [] },
+  };
+  const draft = clone(saved);
+  draft.digest.enabled = true;
+  draft.digest.time = '07:30';
+  assert.equal(changeCount(saved, draft), 1);
+});
+
+test('TIMEZONES offers common zones', () => {
+  assert.ok(TIMEZONES.includes('Europe/Berlin'));
+  assert.ok(TIMEZONES.includes('UTC'));
 });

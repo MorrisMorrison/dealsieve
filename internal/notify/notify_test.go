@@ -168,3 +168,34 @@ func TestForChannelUnknownType(t *testing.T) {
 		t.Error("unknown type")
 	}
 }
+
+func TestTelegramSendsHTML(t *testing.T) {
+	srv, calls := telegramServer(t, 0)
+	tg := &Telegram{APIBase: srv.URL, Token: "TOKEN", ChatID: "42", HTTP: srv.Client()}
+	html := `<b>dealsieve · 1 new deal</b>` + "\n" + `<a href="https://d.example.test">A &amp; B</a>`
+	if err := tg.Send(ctx, Message{Title: "plain", Body: "plain", ClickURL: "https://x.example.test", HTML: html}); err != nil {
+		t.Fatal(err)
+	}
+	if len(*calls) != 1 {
+		t.Fatalf("calls = %+v", *calls)
+	}
+	c := (*calls)[0]
+	if c.path != "/botTOKEN/sendMessage" || c.payload["text"] != html || c.payload["parse_mode"] != "HTML" {
+		t.Errorf("call = %+v", c)
+	}
+}
+
+func TestNtfyIgnoresHTML(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&got)
+	}))
+	defer srv.Close()
+	n := &Ntfy{BaseURL: srv.URL, Topic: "deals", HTTP: srv.Client()}
+	if err := n.Send(ctx, Message{Title: "T", Body: "plain body", HTML: "<b>x</b>"}); err != nil {
+		t.Fatal(err)
+	}
+	if got["message"] != "plain body" {
+		t.Errorf("ntfy got %v", got)
+	}
+}

@@ -201,3 +201,13 @@ func (s *Server) categories(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"categories": list})
 }
+
+// testDigest sends the saved digest to its channels now, without counting
+// as the day's digest.
+func (s *Server) testDigest(w http.ResponseWriter, r *http.Request) {
+	if s.Digest == nil || len(s.Settings.Current().Settings.Digest.Channels) == 0 {
+		writeError(w, http.StatusUnprocessableEntity, "Add a channel to the daily digest and save first.")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"results": s.Digest.SendTest(r.Context())})
+}
