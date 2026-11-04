@@ -88,5 +88,4 @@ The page has **no login**. Keep it on a private network or behind a reverse prox
 
 - It does not detect fake "before" prices, since the feeds carry no old price.
 - It does not know prices outside its own feeds: price history only covers deals dealsieve stored itself, and only products with a model code.
-- It has no LLM judgement yet (there is a placeholder interface).
 - It does not hot-reload environment variables (poll intervals, secrets); those apply on restart.
