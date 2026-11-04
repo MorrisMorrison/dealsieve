@@ -15,7 +15,7 @@ Spec: `docs/superpowers/specs/2026-11-04-price-history-design.md`.
 - Information only: no change to rules, verdicts, scores, notifications or the digest.
 - No new dependencies. Standard library only in Go; no npm packages in `web/`.
 - `fingerprint.CleanTitle` and `fingerprint.Key` must not change behaviour (no fingerprint migration). Existing fingerprint tests must pass unchanged.
-- New migration file: `internal/store/migrations/004_price_history.sql`. Never edit 001–003.
+- New migration file: `internal/store/migrations/005_price_history.sql`. Never edit 001–003.
 - The store stays free of domain logic: it never imports `internal/product`; callers pass functions or values.
 - Front-end builds the DOM with `textContent` and attributes, never `innerHTML` with data.
 - Fixtures and test data are made up (`Example Shop`, `Example Air`, `example.test`). No real feed content, no personal hosts or paths.
@@ -30,7 +30,7 @@ Spec: `docs/superpowers/specs/2026-11-04-price-history-design.md`.
 | `internal/product/product.go` (+`_test`) | `Info`, `Of`, `Same`, `Index` |
 | `internal/product/history.go` (+`_test`) | `Candidate`, `Match`, `History`, `Compare` |
 | `internal/fingerprint/fingerprint.go` | exports `Tokens`, `IsQuantity`, `IsUnit` (no behaviour change) |
-| `internal/store/migrations/004_price_history.sql` | `deal_products` table |
+| `internal/store/migrations/005_price_history.sql` | `deal_products` table |
 | `internal/store/products.go` (+`_test`) | `ProductRow`, `SetProduct`, `DeleteProduct`, `ReindexProducts`, `ProductCandidates` |
 | `internal/pipeline/pipeline.go` | write the product row on ingest |
 | `cmd/dealsieve/main.go` | `ReindexProducts` at startup |
@@ -638,7 +638,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 3: Store — `deal_products`
 
 **Files:**
-- Create: `internal/store/migrations/004_price_history.sql`, `internal/store/products.go`
+- Create: `internal/store/migrations/005_price_history.sql`, `internal/store/products.go`
 - Test: `internal/store/products_test.go`
 
 **Interfaces:**
@@ -770,7 +770,7 @@ func TestProductRowsArePruned(t *testing.T) {
 Run: `go test ./internal/store/`
 Expected: FAIL (`s.SetProduct undefined`, …).
 
-- [ ] **Step 3: Add the migration** (`internal/store/migrations/004_price_history.sql`)
+- [ ] **Step 3: Add the migration** (`internal/store/migrations/005_price_history.sql`)
 
 ```sql
 -- One row per deal with a model code and a parsed price, for price history.
@@ -901,7 +901,7 @@ Expected: `ok` (also `TestOpenIsRepeatable` with the new migration).
 
 ```bash
 gofmt -l . ; go vet ./... && go test ./...
-git add internal/store/migrations/004_price_history.sql internal/store/products.go internal/store/products_test.go
+git add internal/store/migrations/005_price_history.sql internal/store/products.go internal/store/products_test.go
 git commit -m "feat(store): keep a price-history index per deal
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"

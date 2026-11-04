@@ -9,7 +9,7 @@ import (
 	"github.com/MorrisMorrison/dealsieve/internal/source"
 )
 
-func candidateIDs(t *testing.T, s *Store, models ...string) []string {
+func productIDs(t *testing.T, s *Store, models ...string) []string {
 	t.Helper()
 	rows, err := s.ProductCandidates(ctx, models)
 	if err != nil {
@@ -51,14 +51,14 @@ func TestProductCandidates(t *testing.T) {
 	}
 
 	must(s.SetProduct(ctx, "mydealz:a", "s24", "EUR", 50000)) // update in place
-	if got := candidateIDs(t, s, "s24"); !slices.Equal(got, []string{"mydealz:a", "mydealz:b"}) {
+	if got := productIDs(t, s, "s24"); !slices.Equal(got, []string{"mydealz:a", "mydealz:b"}) {
 		t.Errorf("after update: %v", got)
 	}
 	must(s.DeleteProduct(ctx, "mydealz:a"))
-	if got := candidateIDs(t, s, "s24", "s25"); !slices.Equal(got, []string{"mydealz:b", "mydealz:c"}) {
+	if got := productIDs(t, s, "s24", "s25"); !slices.Equal(got, []string{"mydealz:b", "mydealz:c"}) {
 		t.Errorf("after delete: %v", got)
 	}
-	if got := candidateIDs(t, s); got != nil {
+	if got := productIDs(t, s); got != nil {
 		t.Errorf("no models: %v", got)
 	}
 }
@@ -90,7 +90,7 @@ func TestReindexProducts(t *testing.T) {
 	if n != 2 {
 		t.Errorf("indexed %d, want 2", n)
 	}
-	if got := candidateIDs(t, s, "s24", "old"); !slices.Equal(got, []string{"mydealz:a", "mydealz:b"}) {
+	if got := productIDs(t, s, "s24", "old"); !slices.Equal(got, []string{"mydealz:a", "mydealz:b"}) {
 		t.Errorf("candidates = %v", got)
 	}
 }
@@ -104,7 +104,7 @@ func TestProductRowsArePruned(t *testing.T) {
 	if _, err := s.Prune(ctx, t0.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	if got := candidateIDs(t, s, "s24"); got != nil {
+	if got := productIDs(t, s, "s24"); got != nil {
 		t.Errorf("candidates after prune = %v", got)
 	}
 }

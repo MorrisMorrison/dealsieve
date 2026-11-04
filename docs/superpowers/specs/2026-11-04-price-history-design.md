@@ -33,7 +33,7 @@ The shop doesn't matter: "lowest seen" is across all shops. Every stored deal co
 
 ## Data
 
-Migration `004_price_history.sql` (renumbered at merge time if another branch takes 004):
+Migration `005_price_history.sql` (renumbered at merge time if another branch takes 005):
 
 ```sql
 CREATE TABLE deal_products (
