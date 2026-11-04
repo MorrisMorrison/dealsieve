@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addTo, changeCount, clone, nextChannelName, removeFrom, TIMEZONES } from './settings-model.js';
+import { addTo, changeCount, clone, nextChannelName, removeFrom, TIMEZONES, withMinTemperature } from './settings-model.js';
 
 const base = {
   watchlist: ['oled'],
@@ -55,6 +55,19 @@ test('changeCount counts a digest change once', () => {
   const draft = clone(saved);
   draft.digest.enabled = true;
   draft.digest.time = '07:30';
+  assert.equal(changeCount(saved, draft), 1);
+});
+
+test('withMinTemperature drops an empty field and parses a number', () => {
+  assert.deepEqual(withMinTemperature({ enabled: true, min_temperature: 80 }, ''), { enabled: true });
+  assert.deepEqual(withMinTemperature({ enabled: true }, '  '), { enabled: true });
+  assert.deepEqual(withMinTemperature({ enabled: false }, '150'), { enabled: false, min_temperature: 150 });
+});
+
+test('changeCount counts a sources change once', () => {
+  const saved = { ...base, sources: { mydealz: { enabled: true }, dealabs: { enabled: false } } };
+  const draft = clone(saved);
+  draft.sources.dealabs = { enabled: true, min_temperature: 150 };
   assert.equal(changeCount(saved, draft), 1);
 });
 

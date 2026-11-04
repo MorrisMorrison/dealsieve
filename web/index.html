@@ -33,6 +33,7 @@
         <button type="button" role="tab" id="tab-watchlist" data-view="watchlist" aria-controls="deals-panel" aria-selected="false" tabindex="-1">Watchlist <span class="count num" data-count="watchlist"></span></button>
         <button type="button" role="tab" id="tab-blocked" data-view="blocked" aria-controls="deals-panel" aria-selected="false" tabindex="-1">Blocked <span class="count num" data-count="blocked"></span></button>
       </div>
+      <select id="source-filter" class="select" aria-label="Source" hidden><option value="">All sources</option></select>
       <label class="search">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="m14 14-3.5-3.5"/></svg>
         <input id="search" type="search" placeholder="Search deals" aria-label="Search deals">
@@ -54,7 +55,7 @@
       <span class="thumb"></span>
       <span class="grow">
         <span class="title"></span>
-        <span class="sub"><span class="price num"></span><span class="meta merchant"></span><span class="chip"></span></span>
+        <span class="sub"><span class="price num"></span><span class="meta merchant"></span><span class="source" hidden></span><span class="chip"></span></span>
       </span>
       <span class="side"><span class="temp num"></span><span class="when"></span></span>
     </li>
@@ -64,7 +65,7 @@
     <div class="detail-inner">
       <button type="button" class="back" data-back>← Back to deals</button>
       <h2 class="detail-title"></h2>
-      <div class="detail-price"><span class="price num"></span> <span class="meta merchant"></span></div>
+      <div class="detail-price"><span class="price num"></span> <span class="meta merchant"></span> <span class="source" hidden></span></div>
       <figure class="heat">
         <figcaption class="row-between meta"><span>Temperature</span><span class="temp num"></span></figcaption>
         <svg class="bigspark" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"><polygon/><polyline/></svg>

@@ -29,11 +29,20 @@ export function changeCount(saved, draft) {
   if (saved.rules.min_temperature !== draft.rules.min_temperature) n++;
   if (!same(saved.rules.category_overrides, draft.rules.category_overrides)) n++;
   if (!same(saved.rules.recurrence, draft.rules.recurrence)) n++;
+  if (!same(saved.sources, draft.sources)) n++;
   if (!same(saved.channels, draft.channels)) n++;
   if (!same(saved.notify, draft.notify)) n++;
   if (!same(saved.suggestions, draft.suggestions)) n++;
   if (!same(saved.digest, draft.digest)) n++;
   return n;
+}
+
+// The text of a per-source minimum field: empty means "use the global minimum"
+// and leaves min_temperature out of the document.
+export function withMinTemperature(entry, text) {
+  const { min_temperature: _drop, ...rest } = entry;
+  const t = String(text).trim();
+  return t === '' ? rest : { ...rest, min_temperature: Number(t) };
 }
 
 export function nextChannelName(channels, base) {
