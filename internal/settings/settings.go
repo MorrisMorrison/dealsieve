@@ -182,10 +182,16 @@ var (
 // Call it on normalised settings.
 func (s Settings) Validate() map[string]string {
 	errs := map[string]string{}
+	seenCat := map[string]string{}
 	for cat := range s.Rules.CategoryOverrides {
 		if strings.TrimSpace(cat) == "" {
 			errs["rules.category_overrides"] = "category names can't be empty"
 		}
+		// Rules match categories case-insensitively, so these would collide.
+		if other, dup := seenCat[strings.ToLower(cat)]; dup {
+			errs["rules.category_overrides"] = fmt.Sprintf("duplicate category %q", min(cat, other))
+		}
+		seenCat[strings.ToLower(cat)] = cat
 	}
 	if w := s.Rules.Recurrence.WindowDays; w < 1 || w > MaxWindowDays {
 		errs["rules.recurrence.window_days"] = fmt.Sprintf("must be between 1 and %d days", MaxWindowDays)
@@ -231,7 +237,7 @@ func ValidateChannel(name string, ch Channel) map[string]string {
 	}
 	switch ch.Type {
 	case "ntfy":
-		if u, err := url.Parse(ch.URL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		if u, err := url.Parse(ch.URL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
 			errs[p+".url"] = "must be an http(s) URL"
 		}
 		if ch.Topic == "" {

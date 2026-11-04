@@ -104,12 +104,17 @@ func TestValidate(t *testing.T) {
 		path   string
 	}{
 		{"empty override category", func(s *Settings) { s.Rules.CategoryOverrides[""] = 5 }, "rules.category_overrides"},
+		{"override categories differing in case", func(s *Settings) {
+			s.Rules.CategoryOverrides["Reisen"] = 5
+			s.Rules.CategoryOverrides["reisen"] = 7
+		}, "rules.category_overrides"},
 		{"window zero", func(s *Settings) { s.Rules.Recurrence.WindowDays = 0 }, "rules.recurrence.window_days"},
 		{"window above retention", func(s *Settings) { s.Rules.Recurrence.WindowDays = 181 }, "rules.recurrence.window_days"},
 		{"max seen zero", func(s *Settings) { s.Rules.Recurrence.MaxSeen = 0 }, "rules.recurrence.max_seen"},
 		{"bad channel name", func(s *Settings) { s.Channels["My Phone"] = Channel{Type: "telegram", ChatID: "1"} }, "channels.My Phone"},
 		{"unknown channel type", func(s *Settings) { s.Channels["x"] = Channel{Type: "email"} }, "channels.x.type"},
 		{"ntfy bad url", func(s *Settings) { s.Channels["x"] = Channel{Type: "ntfy", URL: "ftp://x", Topic: "t"} }, "channels.x.url"},
+		{"ntfy url without host", func(s *Settings) { s.Channels["x"] = Channel{Type: "ntfy", URL: "http://:80", Topic: "t"} }, "channels.x.url"},
 		{"ntfy no topic", func(s *Settings) { s.Channels["x"] = Channel{Type: "ntfy", URL: "https://n.example.com"} }, "channels.x.topic"},
 		{"ntfy bad priority", func(s *Settings) {
 			s.Channels["x"] = Channel{Type: "ntfy", URL: "https://n.example.com", Topic: "t", Priority: "loud"}
