@@ -364,3 +364,58 @@ func TestRecurrenceIsNotRetroactive(t *testing.T) {
 		t.Errorf("third = %+v, want recurring block", v)
 	}
 }
+
+func dealFrom(src, id, title string, temp *int) source.Deal {
+	d := deal(id, title, temp)
+	d.ID, d.Source = src+":"+id, src
+	return d
+}
+
+func enabled(names ...string) settings.Settings {
+	s := settings.Defaults()
+	s.Sources = map[string]settings.Source{}
+	for _, n := range names {
+		s.Sources[n] = settings.Source{Enabled: true}
+	}
+	return s
+}
+
+func TestNotificationNamesTheSourceOnlyWithSeveralSources(t *testing.T) {
+	h := newHarness(t, settings.When{Watchlist: true})
+	h.p.ApplySettings(enabled("mydealz", "hotukdeals"))
+	h.p.Notify = []settings.NotifyRule{{When: settings.When{MinTemperature: 100}, Channels: []string{"push"}}}
+	h.p.Notifiers = map[string]notify.Notifier{"push": h.push}
+	h.ingest(t, source.FeedTrending, dealFrom("hotukdeals", "1", "Example Laptop", intp(150)))
+	if len(h.push.sent) != 1 || h.push.sent[0].Title != "hotukdeals · Example Laptop" {
+		t.Fatalf("sent = %+v", h.push.sent)
+	}
+
+	h.p.ApplySettings(enabled("mydealz"))
+	h.p.Notify = []settings.NotifyRule{{When: settings.When{MinTemperature: 100}, Channels: []string{"push"}}}
+	h.p.Notifiers = map[string]notify.Notifier{"push": h.push}
+	h.ingest(t, source.FeedTrending, deal("2", "Example Phone", intp(150)))
+	if len(h.push.sent) != 2 || h.push.sent[1].Title != "Example Phone" {
+		t.Errorf("sent = %+v, want an unlabelled title with one source", h.push.sent)
+	}
+}
+
+func TestPendingNotificationOfATurnedOffSourceIsNotRetried(t *testing.T) {
+	h := newHarness(t, settings.When{MinTemperature: 100})
+	h.push.fail = true
+	h.ingest(t, source.FeedTrending, dealFrom("hotukdeals", "1", "Example Laptop", intp(150)))
+	if _, attempts, _ := h.st.NotificationState(ctx, "hotukdeals:1", "push"); attempts != 1 {
+		t.Fatalf("attempts = %d, want 1", attempts)
+	}
+
+	h.push.fail = false
+	h.p.ApplySettings(enabled("mydealz"))
+	h.p.Notify = []settings.NotifyRule{{When: settings.When{MinTemperature: 100}, Channels: []string{"push"}}}
+	h.p.Notifiers = map[string]notify.Notifier{"push": h.push}
+	h.ingest(t, source.FeedTrending)
+	if n := h.push.count(); n != 0 {
+		t.Errorf("sent %d for a turned-off source, want 0", n)
+	}
+	if _, attempts, _ := h.st.NotificationState(ctx, "hotukdeals:1", "push"); attempts != 1 {
+		t.Errorf("attempts = %d, want still 1", attempts)
+	}
+}

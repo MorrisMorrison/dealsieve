@@ -36,6 +36,10 @@ type Pipeline struct {
 	HTTP      *http.Client
 	Now       func() time.Time
 	Log       *slog.Logger
+
+	// sources holds the enabled sources; nil until settings are applied.
+	sources     map[string]bool
+	multiSource bool
 }
 
 // Ingest stores what a feed returned, re-evaluates those deals and sends
@@ -80,6 +84,12 @@ func (p *Pipeline) ApplySettings(s settings.Settings) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.Engine, p.Notify, p.Notifiers = engine, s.Notify, notifiers
+	enabled := s.EnabledSources()
+	p.sources = make(map[string]bool, len(enabled))
+	for _, name := range enabled {
+		p.sources[name] = true
+	}
+	p.multiSource = len(enabled) > 1
 }
 
 // RecomputeRecent re-evaluates recent deals, e.g. after an action. It never
@@ -182,6 +192,14 @@ func (p *Pipeline) channelsFor(rec store.DealRecord, res rules.Result) []string 
 	return out
 }
 
+// label names the source in messages, only when several sources are on.
+func (p *Pipeline) label(src string) string {
+	if !p.multiSource {
+		return ""
+	}
+	return settings.SourceLabel(src)
+}
+
 func (p *Pipeline) send(ctx context.Context, rec store.DealRecord, reasons []string, channel string, now time.Time) {
 	sent, attempts, err := p.Store.NotificationState(ctx, rec.ID, channel)
 	if err != nil {
@@ -196,10 +214,10 @@ func (p *Pipeline) send(ctx context.Context, rec store.DealRecord, reasons []str
 		p.Log.Error("no notifier for channel", "channel", channel)
 		return
 	}
-	sendErr := n.Send(ctx, notify.DealMessage(rec.Title, rec.Price, rec.Merchant, rec.Temperature, reasons, rec.URL, rec.ImageURL))
+	sendErr := n.Send(ctx, notify.DealMessage(p.label(rec.Source), rec.Title, rec.Price, rec.Merchant, rec.Temperature, reasons, rec.URL, rec.ImageURL))
 	if sendErr != nil {
 		if ctx.Err() != nil {
-			return // cancelled by shutdown, not a real delivery failure
+			return // cancelled by shutdown or by the source being turned off mid-poll, not a delivery failure
 		}
 		p.Log.Warn("notification failed", "deal", rec.ID, "channel", channel, "attempt", attempts+1, "err", sendErr)
 	}
@@ -223,6 +241,9 @@ func (p *Pipeline) retryPending(ctx context.Context, now time.Time) map[string]b
 		rec, err := p.Store.GetDeal(ctx, pn.DealID)
 		if err != nil {
 			continue
+		}
+		if p.sources != nil && !p.sources[rec.Source] {
+			continue // source turned off; nothing to retry
 		}
 		v, err := p.Store.GetVerdict(ctx, pn.DealID)
 		if err != nil || v.Decision != string(rules.Pass) {

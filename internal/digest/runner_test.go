@@ -73,6 +73,19 @@ func newRunner(t *testing.T) *runnerHarness {
 	return h
 }
 
+// seedFrom is seed for a deal of another source.
+func (h *runnerHarness) seedFrom(t *testing.T, src, id string, temp int, firstSeen time.Time) {
+	t.Helper()
+	d := source.Deal{ID: src + ":" + id, Source: src, URL: "https://d.example.test/" + id,
+		Title: "Deal " + id, Merchant: "Example Shop", Price: "9€", Temperature: &temp}
+	if _, err := h.st.UpsertDeal(ctx, d, source.FeedTrending, "deal", src+"|"+id, firstSeen); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.st.SaveVerdict(ctx, store.Verdict{DealID: d.ID, Decision: "pass", Score: temp, DecidedAt: firstSeen}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func (h *runnerHarness) seed(t *testing.T, id string, temp int, firstSeen time.Time, watch bool) {
 	t.Helper()
 	h.observe(t, id, temp, firstSeen, "pass", watch)
@@ -243,5 +256,39 @@ func TestTickWarnsOncePerDayAboutAChannelThatCantSend(t *testing.T) {
 	h.r.Tick(ctx)
 	if n := strings.Count(buf.String(), "digest channel can't send"); n != 2 {
 		t.Errorf("warned %d times after day 2, want 2", n)
+	}
+}
+
+func TestTickListsOnlyEnabledSources(t *testing.T) {
+	h := newRunner(t)
+	h.seed(t, "1", 300, h.now.Add(-time.Hour), false)
+	h.seedFrom(t, "hotukdeals", "2", 300, h.now.Add(-time.Hour))
+	h.r.Tick(ctx)
+	if len(h.phone.sent) != 1 {
+		t.Fatalf("sent %d", len(h.phone.sent))
+	}
+	m := h.phone.sent[0]
+	if !strings.Contains(m.Body, "Deal 1") || strings.Contains(m.Body, "Deal 2") {
+		t.Errorf("body = %q, want only the mydealz deal", m.Body)
+	}
+	if strings.Contains(m.Body, "mydealz ·") {
+		t.Errorf("body = %q, want no label with one source", m.Body)
+	}
+}
+
+func TestTickLabelsLinesWithSeveralSources(t *testing.T) {
+	h := newRunner(t)
+	h.s.Sources["hotukdeals"] = settings.Source{Enabled: true}
+	h.seed(t, "1", 300, h.now.Add(-time.Hour), false)
+	h.seedFrom(t, "hotukdeals", "2", 200, h.now.Add(-time.Hour))
+	h.r.Tick(ctx)
+	if len(h.phone.sent) != 1 {
+		t.Fatalf("sent %d", len(h.phone.sent))
+	}
+	body := h.phone.sent[0].Body
+	for _, want := range []string{"1. mydealz · Deal 1", "2. hotukdeals · Deal 2"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body lacks %q:\n%s", want, body)
+		}
 	}
 }

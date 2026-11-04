@@ -17,18 +17,28 @@ var ctx = context.Background()
 func intp(v int) *int { return &v }
 
 func TestDealMessage(t *testing.T) {
-	m := DealMessage("Example OLED TV", "899€", "Example Shop", intp(142), []string{"watchlist: oled"}, "https://d.example.test/1", "https://i.example.test/1.jpg")
+	m := DealMessage("", "Example OLED TV", "899€", "Example Shop", intp(142), []string{"watchlist: oled"}, "https://d.example.test/1", "https://i.example.test/1.jpg")
 	want := Message{Title: "Example OLED TV", Body: "899€ · 142° · Example Shop\nwatchlist: oled", ClickURL: "https://d.example.test/1", ImageURL: "https://i.example.test/1.jpg"}
 	if m != want {
 		t.Errorf("got %+v, want %+v", m, want)
 	}
-	if m := DealMessage("T", "", "", nil, nil, "u", ""); m.Body != "" {
+	if m := DealMessage("", "T", "", "", nil, nil, "u", ""); m.Body != "" {
 		t.Errorf("empty body = %q", m.Body)
 	}
 	// Reasons contain commas themselves, so each gets its own line.
-	m = DealMessage("T", "9€", "", nil, []string{"watchlist: oled", "below the 100° minimum, kept for your watchlist"}, "u", "")
+	m = DealMessage("", "T", "9€", "", nil, []string{"watchlist: oled", "below the 100° minimum, kept for your watchlist"}, "u", "")
 	if want := "9€\nwatchlist: oled\nbelow the 100° minimum, kept for your watchlist"; m.Body != want {
 		t.Errorf("body = %q, want %q", m.Body, want)
+	}
+}
+
+func TestDealMessageNamesTheSource(t *testing.T) {
+	m := DealMessage("hotukdeals", "Example", "9£", "", nil, nil, "u", "")
+	if m.Title != "hotukdeals · Example" {
+		t.Errorf("title = %q", m.Title)
+	}
+	if m := DealMessage("", "Example", "9£", "", nil, nil, "u", ""); m.Title != "Example" {
+		t.Errorf("title without a source = %q", m.Title)
 	}
 }
 

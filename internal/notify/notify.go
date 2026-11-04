@@ -47,7 +47,9 @@ func Reason(err error) string {
 	return err.Error()
 }
 
-func DealMessage(title, price, merchant string, temperature *int, reasons []string, url, imageURL string) Message {
+// DealMessage builds a notification. source is the site label, empty when
+// only one source is on.
+func DealMessage(source, title, price, merchant string, temperature *int, reasons []string, url, imageURL string) Message {
 	var parts []string
 	if price != "" {
 		parts = append(parts, price)
@@ -62,6 +64,9 @@ func DealMessage(title, price, merchant string, temperature *int, reasons []stri
 	if len(reasons) > 0 {
 		// One reason per line: reasons can contain commas themselves.
 		body += "\n" + strings.Join(reasons, "\n")
+	}
+	if source != "" {
+		title = source + " · " + title
 	}
 	return Message{Title: title, Body: body, ClickURL: url, ImageURL: imageURL}
 }
