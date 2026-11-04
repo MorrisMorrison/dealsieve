@@ -3,7 +3,7 @@ title: Development
 description: Build, test and contribute to dealsieve.
 ---
 
-dealsieve is a Go program using the standard library (`net/http`, `log/slog`, `database/sql`). The only direct dependencies are `modernc.org/sqlite` (pure Go) and `gopkg.in/yaml.v3`. The page is plain HTML, CSS and ES modules embedded into the binary: no framework, no npm packages, no build step.
+dealsieve is a Go program using the standard library (`net/http`, `log/slog`, `database/sql`). The only direct dependencies are `modernc.org/sqlite` (pure Go). The page is plain HTML, CSS and ES modules embedded into the binary: no framework, no npm packages, no build step.
 
 ## Commands
 
@@ -16,14 +16,17 @@ node --test web/static/js/*.test.js         # frontend unit tests (Node 24, no p
 CGO_ENABLED=0 go build ./cmd/dealsieve      # must stay CGO-free
 ```
 
-To run it, copy `config.example.yaml` to `config.yaml`; it writes `./data/dealsieve.db`. Both are git-ignored.
+Running it needs nothing but a data directory: it writes `./data/dealsieve.db` (git-ignored). Configure it on the Settings page.
 
 ## Layout
 
 | Path | Responsibility |
 |---|---|
 | `cmd/dealsieve/` | Wiring only, plus the `healthcheck` subcommand |
-| `internal/config/` | YAML config and `DEALSIEVE_*` env vars, defaults, validation |
+| `internal/config/` | `DEALSIEVE_*` env vars only (paths, poll intervals, secrets) |
+| `internal/settings/` | The user settings document: defaults, validation, change summaries |
+| `internal/settingsvc/` | Saves, undoes and applies settings; versions and suggestions |
+| `internal/suggest/` | Mute suggestions computed from Hide and Junk clicks |
 | `internal/source/` | Deal and feed types; `mydealz/` is the RSS adapter |
 | `internal/fingerprint/` | Title cleaning and the fingerprint key |
 | `internal/rules/` | The rule engine: a pure function from deal and facts to a result |
@@ -32,7 +35,7 @@ To run it, copy `config.example.yaml` to `config.yaml`; it writes `./data/dealsi
 | `internal/notify/` | ntfy and Telegram notifiers |
 | `internal/store/` | SQLite and numbered migrations |
 | `internal/api/` | The JSON API, `/health` and the embedded page |
-| `web/` | The page |
+| `web/` | The inbox page and the Settings page |
 | `test/e2e/` | End-to-end test |
 
 ## Conventions
@@ -40,7 +43,7 @@ To run it, copy `config.example.yaml` to `config.yaml`; it writes `./data/dealsi
 - **Rule order is the contract.** A new rule needs a place in the order, a human-readable reason string and a table test.
 - **Fingerprint changes are migrations:** recurrence counts and junk actions are keyed by the fingerprint.
 - **Schema changes** go in a new numbered migration; never edit an applied one.
-- **Every config setting** has a default, is validated, and is documented in `config.example.yaml` and the README.
+- **Every user setting** lives in the settings document and has a default (`settings.Defaults`), a validation rule, a change-summary line (`settings.Summarize`), a control on the Settings page and an entry in the configuration reference. Environment variables are for infrastructure and secrets only.
 - **Front-end:** build the DOM with `textContent` and attributes, never `innerHTML` with deal data; titles are untrusted.
 
 ## Tests stay offline

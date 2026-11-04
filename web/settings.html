@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dealsieve – settings</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="stylesheet" href="/static/css/settings.css">
+  <script type="module" src="/static/js/settings.js"></script>
+</head>
+<body class="settings-page">
+  <div class="app">
+    <header class="appbar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 4h12M4 8h8M6 12h4"/></svg>
+        </span>
+        dealsieve <span class="crumb">/ Settings</span>
+      </div>
+      <span class="spacer"></span>
+      <a class="back-link" href="/">← Back to deals</a>
+      <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle light and dark theme" title="Toggle light and dark theme">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11A5.5 5.5 0 0 0 8 2.5z" fill="currentColor"/></svg>
+      </button>
+    </header>
+
+    <div class="banner" id="page-error" role="alert" hidden></div>
+
+    <div class="layout">
+      <nav class="sidenav" aria-label="Settings sections">
+        <a href="#suggestions" class="on">Suggestions <span class="badge" id="suggestion-count" hidden></span></a>
+        <a href="#watchlist">Watchlist</a>
+        <a href="#filters">Filters</a>
+        <a href="#recurrence">Recurring deals</a>
+        <a href="#notifications">Notifications</a>
+        <a href="#history">History</a>
+      </nav>
+
+      <div class="sections">
+        <section class="card" id="suggestions">
+          <h2>Suggestions</h2>
+          <p class="lead">Based on what you hid or marked as junk recently.</p>
+          <div data-body></div>
+        </section>
+
+        <section class="card" id="watchlist">
+          <h2>Watchlist</h2>
+          <p class="lead">Deals whose title contains one of these are checked the moment they're posted, skip the temperature and recurrence rules, and sort to the top.</p>
+          <div data-body></div>
+        </section>
+
+        <section class="card" id="filters">
+          <h2>Filters</h2>
+          <p class="lead">What never reaches the Passed tab. Blocked deals stay visible in the Blocked tab with the reason.</p>
+          <div data-body></div>
+        </section>
+
+        <section class="card" id="recurrence">
+          <h2>Recurring deals</h2>
+          <p class="lead">The same offer posted again and again (“flights from 19,99 €”) is recognised by shop + title words.</p>
+          <div data-body></div>
+        </section>
+
+        <section class="card" id="notifications">
+          <h2>Notifications</h2>
+          <p class="lead">Each deal is sent at most once per channel. Tokens stay in environment variables, never here.</p>
+          <div data-body></div>
+        </section>
+
+        <section class="card" id="history">
+          <h2>History</h2>
+          <p class="lead">Every save is kept. Undo restores the version before the last save, so undoing twice re-applies the change you just undid.</p>
+          <div data-body></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="savebar" id="savebar" role="status">
+    <span class="grow"><strong id="dirty-count">0</strong> <span id="dirty-label">unsaved changes</span></span>
+    <button class="btn ghost" id="discard" type="button">Discard</button>
+    <button class="btn primary" id="save" type="button">Save</button>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+</body>
+</html>

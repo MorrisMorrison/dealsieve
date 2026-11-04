@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MorrisMorrison/dealsieve/internal/config"
 	"github.com/MorrisMorrison/dealsieve/internal/fingerprint"
 	"github.com/MorrisMorrison/dealsieve/internal/notify"
 	"github.com/MorrisMorrison/dealsieve/internal/rules"
+	"github.com/MorrisMorrison/dealsieve/internal/settings"
 	"github.com/MorrisMorrison/dealsieve/internal/source"
 	"github.com/MorrisMorrison/dealsieve/internal/store"
 )
@@ -42,10 +42,10 @@ func (f *fakeNotifier) count() int {
 	return len(f.sent)
 }
 
-var baseRules = config.Rules{
+var baseRules = settings.Rules{
 	MinTemperature: 100,
 	BlockKeywords:  []string{"gratisprobe"},
-	Recurrence:     config.Recurrence{Window: config.Duration(90 * 24 * time.Hour), MaxSeen: 2},
+	Recurrence:     settings.Recurrence{WindowDays: 90, MaxSeen: 2},
 }
 
 type harness struct {
@@ -55,7 +55,7 @@ type harness struct {
 	push *fakeNotifier
 }
 
-func newHarness(t *testing.T, when config.When) *harness {
+func newHarness(t *testing.T, when settings.When) *harness {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "p.db"))
 	if err != nil {
@@ -67,7 +67,7 @@ func newHarness(t *testing.T, when config.When) *harness {
 	p := &Pipeline{
 		Store:     st,
 		Engine:    rules.New(baseRules, []string{"oled"}),
-		Notify:    []config.NotifyRule{{When: when, Channels: []string{"push"}}},
+		Notify:    []settings.NotifyRule{{When: when, Channels: []string{"push"}}},
 		Notifiers: map[string]notify.Notifier{"push": push},
 		Now:       func() time.Time { return now },
 		Log:       slog.New(slog.DiscardHandler),
@@ -99,7 +99,7 @@ func (h *harness) verdict(t *testing.T, id string) store.Verdict {
 }
 
 func TestWatchlistDealIsNotifiedOnce(t *testing.T) {
-	h := newHarness(t, config.When{Watchlist: true})
+	h := newHarness(t, settings.When{Watchlist: true})
 	d := deal("1", "Example OLED TV", intp(150))
 	h.ingest(t, source.FeedTrending, d)
 	h.ingest(t, source.FeedTrending, d)
@@ -117,7 +117,7 @@ func TestWatchlistDealIsNotifiedOnce(t *testing.T) {
 }
 
 func TestNewFeedWatchlistHitIsNotified(t *testing.T) {
-	h := newHarness(t, config.When{Watchlist: true})
+	h := newHarness(t, settings.When{Watchlist: true})
 	h.ingest(t, source.FeedNew, deal("1", "Example OLED TV", nil), deal("2", "Example Kabel", nil))
 	if h.push.count() != 1 {
 		t.Errorf("sent %d, want 1", h.push.count())
@@ -128,7 +128,7 @@ func TestNewFeedWatchlistHitIsNotified(t *testing.T) {
 }
 
 func TestBlockedDealIsNotNotified(t *testing.T) {
-	h := newHarness(t, config.When{Watchlist: true})
+	h := newHarness(t, settings.When{Watchlist: true})
 	h.ingest(t, source.FeedTrending, deal("1", "Gratisprobe OLED Reiniger", intp(150)))
 	if h.push.count() != 0 {
 		t.Errorf("sent %d, want 0", h.push.count())
@@ -136,7 +136,7 @@ func TestBlockedDealIsNotNotified(t *testing.T) {
 }
 
 func TestFailedNotificationIsRetriedThreeTimesAtMost(t *testing.T) {
-	h := newHarness(t, config.When{Watchlist: true})
+	h := newHarness(t, settings.When{Watchlist: true})
 	h.push.fail = true
 	h.ingest(t, source.FeedTrending, deal("1", "Example OLED TV", intp(150))) // attempt 1
 	h.ingest(t, source.FeedTrending)                                          // attempt 2 (retry)
@@ -151,7 +151,7 @@ func TestFailedNotificationIsRetriedThreeTimesAtMost(t *testing.T) {
 }
 
 func TestFailedNotificationSucceedsOnRetry(t *testing.T) {
-	h := newHarness(t, config.When{Watchlist: true})
+	h := newHarness(t, settings.When{Watchlist: true})
 	h.push.fail = true
 	h.ingest(t, source.FeedTrending, deal("1", "Example OLED TV", intp(150)))
 	h.push.fail = false
@@ -162,7 +162,7 @@ func TestFailedNotificationSucceedsOnRetry(t *testing.T) {
 }
 
 func TestTemperatureNotifyFiresWhenDealHeatsUp(t *testing.T) {
-	h := newHarness(t, config.When{MinTemperature: 500})
+	h := newHarness(t, settings.When{MinTemperature: 500})
 	h.ingest(t, source.FeedTrending, deal("1", "Example Laptop", intp(300)))
 	if h.push.count() != 0 {
 		t.Fatalf("sent %d at 300°", h.push.count())
@@ -174,7 +174,7 @@ func TestTemperatureNotifyFiresWhenDealHeatsUp(t *testing.T) {
 }
 
 func TestRecurringDealIsBlocked(t *testing.T) {
-	h := newHarness(t, config.When{Watchlist: true})
+	h := newHarness(t, settings.When{Watchlist: true})
 	title := "Example Air Flash Sale: Flüge ab 19,99€"
 	for i, id := range []string{"1", "2", "3"} {
 		*h.now = time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC).Add(time.Duration(i) * 20 * 24 * time.Hour)
@@ -189,7 +189,7 @@ func TestRecurringDealIsBlocked(t *testing.T) {
 }
 
 func TestRecomputeAppliesActions(t *testing.T) {
-	h := newHarness(t, config.When{Watchlist: true})
+	h := newHarness(t, settings.When{Watchlist: true})
 	h.ingest(t, source.FeedTrending, deal("1", "Example Laptop", intp(150)), deal("2", "Example Monitor", intp(150)))
 
 	if _, err := h.st.AddAction(ctx, store.ActionHide, "mydealz:1", *h.now); err != nil {
@@ -199,7 +199,7 @@ func TestRecomputeAppliesActions(t *testing.T) {
 	if _, err := h.st.AddAction(ctx, store.ActionJunk, fp, *h.now); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.p.RecomputeRecent(ctx); err != nil {
+	if _, err := h.p.RecomputeRecent(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if v := h.verdict(t, "mydealz:1"); v.Decision != "block" || v.Reasons[0] != "hidden by you" {
@@ -210,22 +210,22 @@ func TestRecomputeAppliesActions(t *testing.T) {
 	}
 }
 
-func TestMuteCategoryActionIsCaseInsensitive(t *testing.T) {
-	h := newHarness(t, config.When{Watchlist: true})
+func TestApplySettingsTakesEffect(t *testing.T) {
+	h := newHarness(t, settings.When{Watchlist: true})
 	h.ingest(t, source.FeedTrending, deal("1", "Example Laptop", intp(150)))
-	if _, err := h.st.AddAction(ctx, store.ActionMuteCategory, "ELEKTRONIK", *h.now); err != nil {
+	s := settings.Defaults()
+	s.Rules.MutedCategories = []string{"ELEKTRONIK"}
+	h.p.ApplySettings(s)
+	if _, err := h.p.RecomputeRecent(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.p.RecomputeRecent(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if v := h.verdict(t, "mydealz:1"); v.Decision != "block" {
-		t.Errorf("verdict = %+v, want block", v)
+	if v := h.verdict(t, "mydealz:1"); v.Decision != "block" || v.Reasons[0] != "muted category: Elektronik" {
+		t.Errorf("verdict = %+v, want blocked by the new muted category", v)
 	}
 }
 
 func TestPrune(t *testing.T) {
-	h := newHarness(t, config.When{Watchlist: true})
+	h := newHarness(t, settings.When{Watchlist: true})
 	h.ingest(t, source.FeedTrending, deal("1", "Example Laptop", intp(150)))
 	*h.now = h.now.Add(181 * 24 * time.Hour)
 	if n, err := h.p.Prune(ctx); err != nil || n != 1 {
@@ -234,7 +234,7 @@ func TestPrune(t *testing.T) {
 }
 
 func TestFailingSendUsesOneAttemptPerIngest(t *testing.T) {
-	h := newHarness(t, config.When{Watchlist: true})
+	h := newHarness(t, settings.When{Watchlist: true})
 	h.push.fail = true
 	d := deal("1", "Example OLED TV", intp(150))
 	for want := 1; want <= 3; want++ {
@@ -255,11 +255,11 @@ func TestFailingSendUsesOneAttemptPerIngest(t *testing.T) {
 }
 
 func TestRecomputeNeverNotifies(t *testing.T) {
-	h := newHarness(t, config.When{Watchlist: true})
+	h := newHarness(t, settings.When{Watchlist: true})
 	h.push.fail = true
 	h.ingest(t, source.FeedTrending, deal("1", "Example OLED TV", intp(150)))
 	h.push.fail = false
-	if err := h.p.RecomputeRecent(ctx); err != nil {
+	if _, err := h.p.RecomputeRecent(ctx); err != nil {
 		t.Fatal(err)
 	}
 	sent, attempts, _ := h.st.NotificationState(ctx, "mydealz:1", "push")
@@ -282,7 +282,7 @@ func (s *slowNotifier) Send(_ context.Context, _ notify.Message) error {
 }
 
 func TestConcurrentFeedsSendOnce(t *testing.T) {
-	h := newHarness(t, config.When{Watchlist: true})
+	h := newHarness(t, settings.When{Watchlist: true})
 	slow := &slowNotifier{}
 	h.p.Notifiers["push"] = slow
 	d := deal("1", "Example OLED TV", intp(150))
@@ -299,5 +299,46 @@ func TestConcurrentFeedsSendOnce(t *testing.T) {
 	wg.Wait()
 	if slow.count != 1 {
 		t.Errorf("sent %d, want 1", slow.count)
+	}
+}
+
+type recordingHandler struct {
+	mu      sync.Mutex
+	records []string
+}
+
+func (r *recordingHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (r *recordingHandler) Handle(_ context.Context, rec slog.Record) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.records = append(r.records, rec.Message)
+	return nil
+}
+func (r *recordingHandler) WithAttrs([]slog.Attr) slog.Handler { return r }
+func (r *recordingHandler) WithGroup(string) slog.Handler      { return r }
+
+// A channel the user removed in the settings must not keep failing in the log.
+func TestPendingNotificationForRemovedChannelIsSkipped(t *testing.T) {
+	h := newHarness(t, settings.When{Watchlist: true})
+	old := &fakeNotifier{fail: true}
+	h.p.Notify = []settings.NotifyRule{{When: settings.When{Watchlist: true}, Channels: []string{"old"}}}
+	h.p.Notifiers = map[string]notify.Notifier{"old": old}
+	d := deal("1", "Example OLED TV", intp(150))
+	h.ingest(t, source.FeedTrending, d)
+	if _, attempts, _ := h.st.NotificationState(ctx, "mydealz:1", "old"); attempts != 1 {
+		t.Fatalf("attempts = %d, want 1", attempts)
+	}
+
+	logs := &recordingHandler{}
+	h.p.Log = slog.New(logs)
+	s := settings.Defaults()
+	s.Watchlist = []string{"oled"}
+	h.p.ApplySettings(s)
+	h.ingest(t, source.FeedTrending, d)
+	if _, attempts, _ := h.st.NotificationState(ctx, "mydealz:1", "old"); attempts != 1 {
+		t.Errorf("attempts after removal = %d, want 1", attempts)
+	}
+	if len(logs.records) != 0 {
+		t.Errorf("logged %q, want nothing for a removed channel", logs.records)
 	}
 }

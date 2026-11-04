@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MorrisMorrison/dealsieve/internal/config"
+	"github.com/MorrisMorrison/dealsieve/internal/settings"
 )
 
 type Decision string
@@ -56,7 +56,7 @@ type Engine struct {
 	maxSeen         int
 }
 
-func New(r config.Rules, watchlist []string) *Engine {
+func New(r settings.Rules, watchlist []string) *Engine {
 	e := &Engine{
 		minTemperature:  r.MinTemperature,
 		overrides:       make(map[string]int, len(r.CategoryOverrides)),
@@ -64,7 +64,7 @@ func New(r config.Rules, watchlist []string) *Engine {
 		mutedMerchants:  lowerSet(r.MutedMerchants),
 		blockKeywords:   lowerAll(r.BlockKeywords),
 		watchlist:       lowerAll(watchlist),
-		window:          r.Recurrence.Window.D(),
+		window:          r.Recurrence.Window(),
 		maxSeen:         r.Recurrence.MaxSeen,
 	}
 	for k, v := range r.CategoryOverrides {

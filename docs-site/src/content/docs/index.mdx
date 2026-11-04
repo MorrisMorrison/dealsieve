@@ -25,7 +25,7 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 		Each deal shows why it passed or was blocked, and blocked deals stay visible in their own tab.
 	</Card>
 	<Card title="Learns from your clicks" icon="pencil">
-		Hide, junk, mute a category or a merchant, and undo any of it later.
+		Hide, junk, mute a category or a merchant, and undo it. Repeated clicks turn into mute suggestions.
 	</Card>
 	<Card title="Watchlist and push" icon="rocket">
 		Watchlist keywords are matched the moment a deal is posted. Notify through ntfy or Telegram.
@@ -34,22 +34,21 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 
 ## Up and running
 
-One container, one data volume, one YAML file.
+One container, one data volume. Everything else is set on the Settings page.
 
 ```bash
 docker run -d --name dealsieve -p 8080:8080 \
   -v dealsieve-data:/data \
-  -v "$PWD/config.yaml:/config/config.yaml:ro" \
   ghcr.io/morrismorrison/dealsieve:latest
 ```
 
-See [Install and run](/dealsieve/guide/install/) for the config file and the details.
+See [Install and run](/dealsieve/guide/install/) for the details.
 
 ## Learn more
 
 <CardGrid>
 	<Card title="Configuration" icon="setting">
-		Every config key and environment variable. [Configuration reference](/dealsieve/reference/configuration/)
+		Every setting on the Settings page and every environment variable. [Configuration reference](/dealsieve/reference/configuration/)
 	</Card>
 	<Card title="Notifications" icon="bell">
 		Push watchlist hits and hot deals. [ntfy and Telegram](/dealsieve/guide/notifications/)

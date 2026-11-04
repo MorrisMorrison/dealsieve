@@ -14,8 +14,7 @@ FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/dealsieve /dealsieve
 # A named volume copies this directory's owner, so the nonroot user can write.
 COPY --from=build --chown=65532:65532 /out/data /data
-ENV DEALSIEVE_CONFIG=/config/config.yaml \
-    DEALSIEVE_DATA_DIR=/data \
+ENV DEALSIEVE_DATA_DIR=/data \
     DEALSIEVE_LISTEN=:8080
 VOLUME /data
 EXPOSE 8080

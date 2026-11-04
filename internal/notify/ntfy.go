@@ -49,7 +49,7 @@ func (n *Ntfy) Send(ctx context.Context, m Message) error {
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("ntfy: status %d: %s", resp.StatusCode, bytes.TrimSpace(msg))
+		return &statusError{what: "ntfy", code: resp.StatusCode, body: string(bytes.TrimSpace(msg))}
 	}
 	return nil
 }

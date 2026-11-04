@@ -3,7 +3,7 @@
 // Starts a tiny fake mydealz (feeds + placeholder images), starts the built
 // binary against it, waits for two trending polls so the heat curves have two
 // points, then drives the page with Playwright. Everything it starts is stopped
-// again, also on failure. All data is made up (see ./feeds and ./config.yaml).
+// again, also on failure. All data is made up (see ./feeds and ./settings.json).
 //
 //   CGO_ENABLED=0 go build -o dealsieve ./cmd/dealsieve   # from the repo root
 //   cd screenshots && npm ci && npx playwright install chromium && npm run capture
@@ -104,7 +104,8 @@ async function main() {
     app = spawn(bin, [], {
       env: {
         ...process.env,
-        DEALSIEVE_CONFIG: path.join(here, 'config.yaml'),
+        DEALSIEVE_POLL_TRENDING: '1m',
+        DEALSIEVE_POLL_NEW: '1m',
         DEALSIEVE_DATA_DIR: path.join(tmp, 'data'),
         DEALSIEVE_LISTEN: `127.0.0.1:${port}`,
         DEALSIEVE_MYDEALZ_URL: fake.url,
@@ -115,6 +116,19 @@ async function main() {
     app.on('exit', (code) => logs.push(`[exited with ${code}]`));
 
     await waitFor('dealsieve to listen', async () => (await fetch(`${base}/health`)).ok, 30_000);
+
+    // Configure through the API, like a user on the Settings page. No Origin
+    // header is sent, which the app's cross-origin protection accepts.
+    const current = await (await fetch(`${base}/api/settings`)).json();
+    const put = await fetch(`${base}/api/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        version: current.version,
+        settings: JSON.parse(fs.readFileSync(path.join(here, 'settings.json'), 'utf8')),
+      }),
+    });
+    if (!put.ok) throw new Error(`PUT /api/settings failed: ${put.status} ${await put.text()}`);
     const first = await waitFor('the first poll', () => trendingSuccess(base), 30_000);
     console.log('first poll done; waiting for the second (poll intervals are at least 1m)...');
     await waitFor('the second poll', async () => (await trendingSuccess(base)) !== first, 150_000, 1000);

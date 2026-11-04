@@ -36,8 +36,13 @@ personal use. Please respect the site's terms and keep polling intervals reasona
 - **Categories, merchants and keywords** you never want to see.
 - **Cold deals** below a temperature you choose (per category if you like).
 - **Your own feedback:** every deal's detail panel has *Hide*, *Junk*, *Mute shop* and
-  *Mute category*. *Junk* blocks everything that looks like that deal from then on. Every click
-  can be undone from the Rules view.
+  *Mute category*. *Junk* blocks everything that looks like that deal from then on. *Hide* and
+  *Junk* can be undone right on the deal; mutes become entries in your settings.
+- **Suggestions:** when you keep hiding or junking deals from one shop or category, the Settings
+  page suggests muting it, with the examples that led to it. Apply or dismiss.
+
+All of this is edited on the **Settings** page (the gear in the header), applies without a restart,
+and every save is kept as a version you can undo.
 
 The page is an inbox: a list of deals on the left and the selected deal on the right, with its
 heat curve and why it's there (or why it's blocked). Blocked deals stay visible in their own tab,
@@ -47,7 +52,8 @@ deal; on a phone, a deal opens as a full-screen sheet.
 ## Watchlist and notifications
 
 Watchlist keywords are checked against every new deal as soon as it's posted, before it trends.
-Notification rules send watchlist hits, or deals above a temperature, to
+Channels and notification rules are set on the Settings page (with a *Send test* button); tokens
+stay in environment variables. Notification rules send watchlist hits, or deals above a temperature, to
 [ntfy](https://ntfy.sh) and/or Telegram.
 
 ## Run it
@@ -55,12 +61,14 @@ Notification rules send watchlist hits, or deals above a temperature, to
 ```bash
 docker run -d --name dealsieve -p 8080:8080 \
   -v dealsieve-data:/data \
-  -v "$PWD/config.yaml:/config/config.yaml:ro" \
   ghcr.io/morrismorrison/dealsieve:latest
 ```
 
-Start from [`config.example.yaml`](config.example.yaml). The page has **no login**: keep it on a
-private network or put it behind your reverse proxy's authentication.
+Open the page and configure everything under **Settings** (the gear). The page has **no login**:
+keep it on a private network or put it behind your reverse proxy's authentication.
+
+**Upgrading from v0.0.1?** Breaking change: `config.yaml` (and `DEALSIEVE_CONFIG`) is no longer
+read. Remove the mount and re-enter your settings on the Settings page.
 
 With a bind mount instead of a named volume for `/data`, make the directory writable by UID 65532.
 
@@ -73,15 +81,23 @@ are snapshots on the way to a stable 1.0, not long-term-supported versions.
 
 | Env var | Default | |
 |---|---|---|
-| `DEALSIEVE_CONFIG` | `config.yaml` (`/config/config.yaml` in the image) | Path to the YAML config |
 | `DEALSIEVE_DATA_DIR` | `./data` (`/data` in the image) | Where the SQLite database lives |
 | `DEALSIEVE_LISTEN` | `:8080` | Listen address |
 | `DEALSIEVE_LOG_FORMAT` | `text` | `text` or `json` |
+| `DEALSIEVE_POLL_TRENDING` | `5m` | Interval for the trending feed (minimum `1m`) |
+| `DEALSIEVE_POLL_NEW` | `2m` | Interval for the feed of every new deal (minimum `1m`) |
 | `DEALSIEVE_TELEGRAM_TOKEN` | | Bot token, needed for Telegram channels |
 | `DEALSIEVE_NTFY_TOKEN` | | Access token for a protected ntfy server |
 | `DEALSIEVE_MYDEALZ_URL` | `https://www.mydealz.de` | Feed host (for tests) |
 
-Config changes apply on restart. Invalid configs are rejected at startup with a list of problems.
+Environment variables are for infrastructure and secrets and apply on restart; invalid values are
+rejected at startup with a list of problems. Everything else (watchlist, mutes, keywords,
+temperatures, recurrence, notification channels and rules) lives on the Settings page.
+
+**Security.** The page has no login of its own. `DEALSIEVE_NTFY_TOKEN` is sent to the server of every
+ntfy channel (and by Send test), so anyone who can reach the page can point a channel at a server of
+their own and receive it. Keep dealsieve on a private network or behind an authenticating proxy, and use
+an ntfy token scoped to the dealsieve topic.
 
 ## Development
 

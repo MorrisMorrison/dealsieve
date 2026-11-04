@@ -18,6 +18,8 @@
   --watch: #7c3aed;
   --watch-soft: #f1ebfe;
   --ok: #16a34a;
+  --warn: #b45309;
+  --warn-soft: #fef3c7;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
   --radius: 10px;
   color-scheme: light;
@@ -44,6 +46,8 @@
     --watch: #a78bfa;
     --watch-soft: #2a2140;
     --ok: #4ade80;
+    --warn: #fbbf24;
+    --warn-soft: #3a2e12;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
     color-scheme: dark;
   }
@@ -69,6 +73,8 @@
   --watch: #a78bfa;
   --watch-soft: #2a2140;
   --ok: #4ade80;
+  --warn: #fbbf24;
+  --warn-soft: #3a2e12;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   color-scheme: dark;
 }
@@ -183,13 +189,12 @@ button { cursor: pointer; }
 .back { display: none; align-self: flex-start; border: 0; background: none; padding: 0; color: var(--accent); }
 .hint { margin: 0; text-align: center; }
 
-/* Rules */
-.rules { display: grid; gap: 16px; }
+/* Suggestion banner */
+.banner { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 10px; background: var(--warn-soft); color: var(--text); margin-bottom: 14px; font-size: 13px; }
+.banner a { color: var(--accent); font-weight: 550; text-decoration: none; margin-left: auto; }
+.banner[hidden] { display: none; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; }
 .card h2 { margin: 0 0 10px; font-size: 15px; }
-.rules pre { margin: 0; overflow-x: auto; font-size: 12.5px; line-height: 1.5; }
-.action-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.action-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; overflow-wrap: anywhere; }
 .error { color: var(--block); }
 
 /* Phones: the list is full width; a selected deal opens as a full-screen sheet. */

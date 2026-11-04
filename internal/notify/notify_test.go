@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/MorrisMorrison/dealsieve/internal/config"
+	"github.com/MorrisMorrison/dealsieve/internal/settings"
 )
 
 var ctx = context.Background()
@@ -149,8 +150,8 @@ func TestTelegramErrorHidesToken(t *testing.T) {
 	}
 }
 
-func TestFromConfig(t *testing.T) {
-	got := FromConfig(map[string]config.Channel{
+func TestFromSettings(t *testing.T) {
+	got := FromSettings(map[string]settings.Channel{
 		"a": {Type: "ntfy", URL: "https://n.example.com", Topic: "t", Priority: "low"},
 		"b": {Type: "telegram", ChatID: "1"},
 	}, config.Env{TelegramToken: "tok", NtfyToken: "nt"}, http.DefaultClient)
@@ -159,5 +160,11 @@ func TestFromConfig(t *testing.T) {
 	}
 	if tg, ok := got["b"].(*Telegram); !ok || tg.Token != "tok" || tg.APIBase != "https://api.telegram.org" {
 		t.Errorf("b = %#v", got["b"])
+	}
+}
+
+func TestForChannelUnknownType(t *testing.T) {
+	if ForChannel(settings.Channel{Type: "email"}, config.Env{}, nil) != nil {
+		t.Error("unknown type")
 	}
 }

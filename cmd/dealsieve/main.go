@@ -17,10 +17,9 @@ import (
 
 	"github.com/MorrisMorrison/dealsieve/internal/api"
 	"github.com/MorrisMorrison/dealsieve/internal/config"
-	"github.com/MorrisMorrison/dealsieve/internal/notify"
 	"github.com/MorrisMorrison/dealsieve/internal/pipeline"
 	"github.com/MorrisMorrison/dealsieve/internal/poller"
-	"github.com/MorrisMorrison/dealsieve/internal/rules"
+	"github.com/MorrisMorrison/dealsieve/internal/settingsvc"
 	"github.com/MorrisMorrison/dealsieve/internal/source"
 	"github.com/MorrisMorrison/dealsieve/internal/source/mydealz"
 	"github.com/MorrisMorrison/dealsieve/internal/store"
@@ -43,52 +42,51 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	cfgPath := os.Getenv("DEALSIEVE_CONFIG")
-	if cfgPath == "" {
-		cfgPath = "config.yaml"
-	}
-	cfg, err := config.Load(cfgPath, os.Getenv)
+	env, err := config.FromEnv(os.Getenv)
 	if err != nil {
 		return err
 	}
-	log := newLogger(cfg.Env.LogFormat)
+	log := newLogger(env.LogFormat)
+	if os.Getenv("DEALSIEVE_CONFIG") != "" {
+		log.Warn("DEALSIEVE_CONFIG is no longer read; configure dealsieve on the Settings page")
+	}
 
-	if err := os.MkdirAll(cfg.Env.DataDir, 0o755); err != nil {
+	if err := os.MkdirAll(env.DataDir, 0o755); err != nil {
 		return fmt.Errorf("create data dir: %w", err)
 	}
-	st, err := store.Open(filepath.Join(cfg.Env.DataDir, "dealsieve.db"))
+	st, err := store.Open(filepath.Join(env.DataDir, "dealsieve.db"))
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
 	defer st.Close()
 
-	httpc := &http.Client{Timeout: 30 * time.Second}
-	pipe := &pipeline.Pipeline{
-		Store:     st,
-		Engine:    rules.New(cfg.Rules, cfg.Watchlist),
-		Notify:    cfg.Notify,
-		Notifiers: notify.FromConfig(cfg.Channels, cfg.Env, httpc),
-		Now:       time.Now,
-		Log:       log,
+	// Notifiers get a shorter timeout: the Settings page's test send waits
+	// for one, and a slow target shouldn't hold a poll up for long.
+	feedClient := &http.Client{Timeout: 30 * time.Second}
+	notifyClient := &http.Client{Timeout: 10 * time.Second}
+	pipe := &pipeline.Pipeline{Store: st, Env: env, HTTP: notifyClient, Now: time.Now, Log: log}
+	svc := &settingsvc.Service{Store: st, Apply: pipe, Now: time.Now}
+	if err := svc.Load(ctx); err != nil {
+		return fmt.Errorf("load settings: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Apply config changes to recent deals before serving them.
-	if err := pipe.RecomputeRecent(ctx); err != nil {
+	// Apply the stored settings to recent deals before serving them.
+	if _, err := pipe.RecomputeRecent(ctx); err != nil {
 		return fmt.Errorf("recompute verdicts: %w", err)
 	}
 
 	src := &mydealz.Client{
-		BaseURL:   cfg.Env.MydealzURL,
+		BaseURL:   env.MydealzURL,
 		UserAgent: "dealsieve/" + version.Version + " (+" + repoURL + ")",
-		HTTP:      httpc,
+		HTTP:      feedClient,
 		Log:       log,
 	}
 	pl := poller.New(src, pipe, map[source.Feed]time.Duration{
-		source.FeedTrending: cfg.Poll.Trending.D(),
-		source.FeedNew:      cfg.Poll.New.D(),
+		source.FeedTrending: env.PollTrending,
+		source.FeedNew:      env.PollNew,
 	}, log)
 	// Both must finish before the deferred st.Close(), or they hit a closed database.
 	var wg sync.WaitGroup
@@ -96,16 +94,17 @@ func run(ctx context.Context) error {
 	wg.Go(func() { pruneLoop(ctx, pipe, log) })
 
 	srv := &http.Server{
-		Addr: cfg.Env.Listen,
+		Addr: env.Listen,
 		Handler: (&api.Server{
-			Store: st, Recompute: pipe, Status: pl.Status, Config: cfg,
+			Store: st, Recompute: pipe, Status: pl.Status,
+			Settings: svc, Env: env, HTTP: notifyClient,
 			Assets: web.Assets, Log: log, Now: time.Now,
 		}).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
-	log.Info("dealsieve started", "version", version.Version, "listen", cfg.Env.Listen)
+	log.Info("dealsieve started", "version", version.Version, "listen", env.Listen)
 
 	var srvErr error
 	select {

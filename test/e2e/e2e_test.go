@@ -6,8 +6,8 @@ package e2e
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +19,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/MorrisMorrison/dealsieve/internal/settings"
+	"github.com/MorrisMorrison/dealsieve/internal/store"
 )
 
 type deal struct {
@@ -54,26 +57,32 @@ func TestEndToEnd(t *testing.T) {
 	defer ntfy.Close()
 
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "config.yaml")
-	cfg := fmt.Sprintf(`poll: { trending: 1m, new: 1m }
-rules:
-  min_temperature: 100
-  block_keywords: [gratisprobe]
-watchlist: [rtx 5080]
-notify:
-  - when: watchlist
-    channels: [push]
-channels:
-  push: { type: ntfy, url: %q, topic: deals, priority: high }
-`, ntfy.URL)
-	if err := os.WriteFile(cfgPath, []byte(cfg), 0o600); err != nil {
+	// Settings must exist before the first poll: re-checks never notify, so
+	// deals that arrive earlier couldn't trigger the push.
+	dataDir := filepath.Join(dir, "data")
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	st, err := store.Open(filepath.Join(dataDir, "dealsieve.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed := settings.Defaults()
+	seed.Watchlist = []string{"rtx 5080"}
+	seed.Rules.BlockKeywords = []string{"gratisprobe"}
+	seed.Channels = map[string]settings.Channel{"push": {Type: "ntfy", URL: ntfy.URL, Topic: "deals", Priority: "high"}}
+	seed.Notify = []settings.NotifyRule{{When: settings.When{Watchlist: true}, Channels: []string{"push"}}}
+	doc, _ := json.Marshal(seed)
+	if _, err := st.SaveSettings(context.Background(), doc, []string{"e2e seed"}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
 
 	listen := "127.0.0.1:" + freePort(t)
 	env := append(os.Environ(),
-		"DEALSIEVE_CONFIG="+cfgPath,
-		"DEALSIEVE_DATA_DIR="+filepath.Join(dir, "data"),
+		"DEALSIEVE_POLL_TRENDING=1m",
+		"DEALSIEVE_POLL_NEW=1m",
+		"DEALSIEVE_DATA_DIR="+dataDir,
 		"DEALSIEVE_LISTEN="+listen,
 		"DEALSIEVE_MYDEALZ_URL="+feeds.URL,
 	)
@@ -128,6 +137,38 @@ channels:
 	}
 	if got := getDeals(base, "blocked"); len(got) != 2 || got[0].ID != "mydealz:1000001" || got[0].Reasons[0] != "hidden by you" {
 		t.Errorf("blocked after hide = %+v", got)
+	}
+
+	// Settings changes apply live: muting the shop blocks its watchlist deal.
+	resp, err = http.Get(base + "/api/settings")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cur struct {
+		Version  int64          `json:"version"`
+		Settings map[string]any `json:"settings"`
+	}
+	json.NewDecoder(resp.Body).Decode(&cur)
+	resp.Body.Close()
+	cur.Settings["rules"].(map[string]any)["muted_merchants"] = []string{"Example Shop"}
+	put, _ := json.Marshal(map[string]any{"version": cur.Version, "settings": cur.Settings})
+	req, _ := http.NewRequest(http.MethodPut, base+"/api/settings", bytes.NewReader(put))
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT settings: %v %v", resp, err)
+	}
+	resp.Body.Close()
+	var muted *deal
+	for _, d := range getDeals(base, "blocked") {
+		if d.ID == "mydealz:1000010" {
+			muted = &d
+		}
+	}
+	if muted == nil || muted.Reasons[0] != "muted merchant: Example Shop" {
+		t.Errorf("blocked after muting the shop = %+v", getDeals(base, "blocked"))
+	}
+	if got := getDeals(base, "watchlist"); len(got) != 0 {
+		t.Errorf("watchlist after muting the shop = %+v", got)
 	}
 
 	hc := exec.Command(bin, "healthcheck")

@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
+	"net/http"
 	"sync"
 	"time"
 
@@ -14,6 +14,7 @@ import (
 	"github.com/MorrisMorrison/dealsieve/internal/fingerprint"
 	"github.com/MorrisMorrison/dealsieve/internal/notify"
 	"github.com/MorrisMorrison/dealsieve/internal/rules"
+	"github.com/MorrisMorrison/dealsieve/internal/settings"
 	"github.com/MorrisMorrison/dealsieve/internal/source"
 	"github.com/MorrisMorrison/dealsieve/internal/store"
 )
@@ -29,8 +30,10 @@ type Pipeline struct {
 	mu        sync.Mutex
 	Store     *store.Store
 	Engine    *rules.Engine
-	Notify    []config.NotifyRule
+	Notify    []settings.NotifyRule
 	Notifiers map[string]notify.Notifier
+	Env       config.Env
+	HTTP      *http.Client
 	Now       func() time.Time
 	Log       *slog.Logger
 }
@@ -69,29 +72,39 @@ func (p *Pipeline) Ingest(ctx context.Context, feed source.Feed, deals []source.
 	return nil
 }
 
+// ApplySettings swaps the rule engine and notifiers in place; a poll in
+// flight finishes with the old ones.
+func (p *Pipeline) ApplySettings(s settings.Settings) {
+	engine := rules.New(s.Rules, s.Watchlist)
+	notifiers := notify.FromSettings(s.Channels, p.Env, p.HTTP)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.Engine, p.Notify, p.Notifiers = engine, s.Notify, notifiers
+}
+
 // RecomputeRecent re-evaluates recent deals, e.g. after an action. It never
 // notifies: undoing a mute shouldn't ping about old deals.
-func (p *Pipeline) RecomputeRecent(ctx context.Context) error {
+func (p *Pipeline) RecomputeRecent(ctx context.Context) (int, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	now := p.Now()
 	facts, err := p.actionFacts(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	recs, err := p.Store.DealsSeenSince(ctx, now.Add(-recomputeWindow))
 	if err != nil {
-		return err
+		return 0, err
 	}
 	verdicts := make([]store.Verdict, 0, len(recs))
 	for _, rec := range recs {
 		res, err := p.evaluate(ctx, rec, facts, now)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		verdicts = append(verdicts, verdictOf(rec, res, now))
 	}
-	return p.Store.SaveVerdicts(ctx, verdicts)
+	return len(verdicts), p.Store.SaveVerdicts(ctx, verdicts)
 }
 
 func (p *Pipeline) Prune(ctx context.Context) (int64, error) {
@@ -101,7 +114,7 @@ func (p *Pipeline) Prune(ctx context.Context) (int64, error) {
 }
 
 type actionFacts struct {
-	hidden, mutedCategories, mutedMerchants, junk map[string]bool
+	hidden, junk map[string]bool
 }
 
 func (p *Pipeline) actionFacts(ctx context.Context) (actionFacts, error) {
@@ -109,17 +122,13 @@ func (p *Pipeline) actionFacts(ctx context.Context) (actionFacts, error) {
 	if err != nil {
 		return actionFacts{}, err
 	}
-	f := actionFacts{hidden: map[string]bool{}, mutedCategories: map[string]bool{}, mutedMerchants: map[string]bool{}, junk: map[string]bool{}}
+	f := actionFacts{hidden: map[string]bool{}, junk: map[string]bool{}}
 	for _, a := range actions {
 		switch a.Kind {
 		case store.ActionHide:
 			f.hidden[a.Value] = true
 		case store.ActionJunk:
 			f.junk[a.Value] = true
-		case store.ActionMuteCategory:
-			f.mutedCategories[strings.ToLower(a.Value)] = true
-		case store.ActionMuteMerchant:
-			f.mutedMerchants[strings.ToLower(a.Value)] = true
 		}
 	}
 	return f, nil
@@ -150,7 +159,7 @@ func (p *Pipeline) evaluate(ctx context.Context, rec store.DealRecord, af action
 		Title: rec.Title, Merchant: rec.Merchant, Category: rec.Category, Fingerprint: rec.Fingerprint,
 		Temperature: rec.Temperature, InTrending: rec.InTrending,
 	}, rules.Facts{
-		Hidden: af.hidden[rec.ID], MutedCategories: af.mutedCategories, MutedMerchants: af.mutedMerchants,
+		Hidden:           af.hidden[rec.ID],
 		JunkFingerprints: af.junk, Recurrence: n, LastRecurrence: last,
 	}), nil
 }
@@ -208,6 +217,9 @@ func (p *Pipeline) retryPending(ctx context.Context, now time.Time) map[string]b
 		return attempted
 	}
 	for _, pn := range pending {
+		if _, ok := p.Notifiers[pn.Channel]; !ok {
+			continue // removed in the settings; nothing to retry through
+		}
 		rec, err := p.Store.GetDeal(ctx, pn.DealID)
 		if err != nil {
 			continue

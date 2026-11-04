@@ -13,6 +13,7 @@ import (
 
 	"github.com/MorrisMorrison/dealsieve/internal/config"
 	"github.com/MorrisMorrison/dealsieve/internal/poller"
+	"github.com/MorrisMorrison/dealsieve/internal/settingsvc"
 	"github.com/MorrisMorrison/dealsieve/internal/store"
 )
 
@@ -22,14 +23,16 @@ const (
 )
 
 type Recomputer interface {
-	RecomputeRecent(ctx context.Context) error
+	RecomputeRecent(ctx context.Context) (int, error)
 }
 
 type Server struct {
 	Store     *store.Store
 	Recompute Recomputer
 	Status    func() []poller.Status
-	Config    *config.Config
+	Settings  *settingsvc.Service
+	Env       config.Env
+	HTTP      *http.Client
 	Assets    fs.FS
 	Log       *slog.Logger
 	Now       func() time.Time
@@ -39,8 +42,17 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/deals", s.listDeals)
 	mux.HandleFunc("POST /api/actions", s.addAction)
+	mux.HandleFunc("POST /api/actions/undo", s.undoAction)
 	mux.HandleFunc("DELETE /api/actions/{id}", s.deleteAction)
-	mux.HandleFunc("GET /api/rules", s.rules)
+	mux.HandleFunc("GET /api/settings", s.getSettings)
+	mux.HandleFunc("PUT /api/settings", s.putSettings)
+	mux.HandleFunc("POST /api/settings/undo", s.undoSettings)
+	mux.HandleFunc("GET /api/settings/history", s.settingsHistory)
+	mux.HandleFunc("POST /api/settings/test", s.testChannel)
+	mux.HandleFunc("GET /api/suggestions", s.suggestions)
+	mux.HandleFunc("POST /api/suggestions/apply", s.applySuggestion)
+	mux.HandleFunc("POST /api/suggestions/dismiss", s.dismissSuggestion)
+	mux.HandleFunc("GET /api/categories", s.categories)
 	mux.HandleFunc("GET /api/status", s.status)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
 	mux.Handle("GET /", http.FileServerFS(s.Assets))
@@ -156,12 +168,26 @@ func (s *Server) addAction(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "this deal has nothing to "+req.Kind)
 		return
 	}
+	if req.Kind == store.ActionMuteCategory || req.Kind == store.ActionMuteMerchant {
+		res, err := s.Settings.Mute(r.Context(), req.Kind, value, " (from a deal)")
+		body := map[string]any{"kind": req.Kind, "value": value, "version": res.Version}
+		if err != nil {
+			if !res.Changed {
+				s.fail(w, err)
+				return
+			}
+			s.Log.Error("re-check after settings change failed", "err", err)
+			body["warning"] = recheckWarning
+		}
+		writeJSON(w, http.StatusCreated, body)
+		return
+	}
 	a, err := s.Store.AddAction(r.Context(), req.Kind, value, s.Now())
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
-	if err := s.Recompute.RecomputeRecent(r.Context()); err != nil {
+	if _, err := s.Recompute.RecomputeRecent(r.Context()); err != nil {
 		s.fail(w, err)
 		return
 	}
@@ -183,23 +209,11 @@ func (s *Server) deleteAction(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "action not found")
 		return
 	}
-	if err := s.Recompute.RecomputeRecent(r.Context()); err != nil {
+	if _, err := s.Recompute.RecomputeRecent(r.Context()); err != nil {
 		s.fail(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (s *Server) rules(w http.ResponseWriter, r *http.Request) {
-	actions, err := s.Store.Actions(r.Context())
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
-	if actions == nil {
-		actions = []store.Action{}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"rules": s.Config.Rules, "watchlist": s.Config.Watchlist, "actions": actions})
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
@@ -219,4 +233,42 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// undoAction removes a deal's Hide, or the Junk mark on its fingerprint.
+func (s *Server) undoAction(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Kind   string `json:"kind"`
+		DealID string `json:"deal_id"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if req.Kind != store.ActionHide && req.Kind != store.ActionJunk {
+		writeError(w, http.StatusBadRequest, "only hide_deal and junk can be undone here")
+		return
+	}
+	deal, err := s.Store.GetDeal(r.Context(), req.DealID)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "deal not found")
+		return
+	}
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	value := deal.ID
+	if req.Kind == store.ActionJunk {
+		value = deal.Fingerprint
+	}
+	if _, err := s.Store.DeleteActionsByValue(r.Context(), req.Kind, value); err != nil {
+		s.fail(w, err)
+		return
+	}
+	if _, err := s.Recompute.RecomputeRecent(r.Context()); err != nil {
+		s.fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

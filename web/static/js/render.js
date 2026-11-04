@@ -1,11 +1,10 @@
 import { areaPoints, sparkPoints } from './sparkline.js';
 import { age, ago, clock, heat, sentence } from './format.js';
 
-const ACTION_LABELS = {
-  hide_deal: 'Hidden deal',
-  junk: 'Junk pattern',
-  mute_category: 'Muted category',
-  mute_merchant: 'Muted shop',
+// Blocked deals whose first reason came from a click can be undone on the spot.
+const UNDO_BY_REASON = {
+  'hidden by you': ['hide_deal', 'Unhide'],
+  'like a deal you marked as junk': ['junk', 'Not junk'],
 };
 
 const FEED_LABELS = { trending: 'trending', new: 'new deals' };
@@ -57,7 +56,7 @@ export function renderList(list, deals, selectedId, onSelect) {
   }));
 }
 
-export function renderDetail(panel, deal, { onAction, onBack }) {
+export function renderDetail(panel, deal, { onAction, onUndo, onBack }) {
   if (!deal) {
     panel.replaceChildren();
     return;
@@ -99,6 +98,14 @@ export function renderDetail(panel, deal, { onAction, onBack }) {
   node.querySelector('.feeds').textContent = feeds.join(', ') || '—';
 
   node.querySelector('.btn.primary').href = deal.url;
+  const undoable = blocked && UNDO_BY_REASON[deal.reasons[0]];
+  if (undoable) {
+    const [kind, text] = undoable;
+    const button = el('button', 'btn', text);
+    button.type = 'button';
+    button.addEventListener('click', () => onUndo(kind, deal));
+    node.querySelector('.btn.primary').after(button);
+  }
   for (const button of node.querySelectorAll('[data-kind]')) {
     const kind = button.dataset.kind;
     if ((kind === 'mute_category' && !deal.category) || (kind === 'mute_merchant' && !deal.merchant)) {
@@ -108,27 +115,6 @@ export function renderDetail(panel, deal, { onAction, onBack }) {
     button.addEventListener('click', () => onAction(kind, deal));
   }
   panel.replaceChildren(node);
-}
-
-export function renderRules(panel, data, onUndo) {
-  const list = el('ul', 'action-list');
-  if (data.actions.length === 0) list.append(el('li', 'meta', 'No clicks yet. Hide, Junk and Mute on a deal show up here.'));
-  for (const action of data.actions) {
-    const undo = el('button', 'btn', 'Undo');
-    undo.type = 'button';
-    undo.addEventListener('click', () => onUndo(action.id));
-    const item = el('li');
-    item.append(el('span', '', `${ACTION_LABELS[action.kind] ?? action.kind}: ${action.value}`), undo);
-    list.append(item);
-  }
-  const clicks = el('section', 'card');
-  clicks.append(el('h2', '', 'Your clicks'), list);
-  const rules = el('section', 'card');
-  rules.append(
-    el('h2', '', 'Active rules (config.yaml, with defaults)'),
-    el('pre', '', JSON.stringify({ rules: data.rules, watchlist: data.watchlist }, null, 2)),
-  );
-  panel.replaceChildren(clicks, rules);
 }
 
 export function renderStatus(node, feeds) {
