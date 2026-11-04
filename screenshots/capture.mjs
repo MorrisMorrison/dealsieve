@@ -157,7 +157,7 @@ async function main() {
         await page.click('#tab-blocked');
         const recurring = page.locator('#list .item', { hasText: 'Example Air' }).filter({ has: page.locator('.chip.block') }).first();
         await recurring.waitFor();
-        console.log('recurring chip:', await recurring.locator('.chip').textContent());
+        console.log('recurring chip:', await recurring.locator('.chip.block').textContent());
         await recurring.click();
         await page.waitForSelector('#detail .why');
         await page.mouse.move(0, 0);
