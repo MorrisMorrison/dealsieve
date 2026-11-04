@@ -29,6 +29,8 @@ The web page talks to the backend only through this JSON API. Errors are returne
 
 Returns up to 200 deals, sorted by score and then by first-seen time. Each deal carries its verdict, the reasons, the current temperature and the temperature history (used for the sparkline). Add `source=<name>` (`mydealz`, `hotukdeals`, `dealabs`, `preisjaeger`, `chollometro` or `pepperpl`) to list one source only; an unknown `view` or an unknown or disabled `source` returns `400`. Every deal carries `source` and `source_label`.
 
+A blocked deal also carries `undo` (`null` when there is nothing to take back): `{"kind": "hide_deal"}` when you hid it, `{"kind": "junk"}` when it is blocked because of a Junk click. The page uses it to offer Unhide or Not junk; pass the `kind` and the deal's `id` to `POST /api/actions/undo`. It comes from the rule that blocked the deal, so it is empty for deals whose verdict was saved before this field existed until the next re-check (after any click or settings change, covering the last 7 days).
+
 The response also contains `counts` next to `deals`, with the number of deals per view (`passed`, `watchlist`, `blocked`) over the same window, whichever view you listed.
 
 A deal can also carry `price_history` (left out when there is none): `status` (`best` or `above`), `currency`, `diff_cents` (how much more than the lowest; 0 for `best`), `count` (other deals of the same product), `lowest` and `matches` (up to 10, cheapest first; each with `id`, `url`, `title`, `merchant`, `price`, `first_seen`).
@@ -118,7 +120,7 @@ Body `{ "version": 3, "settings": { ... } }`, where `version` is the version you
 |---|---|
 | `200` | Saved, applied and recent deals re-checked. The body is the `GET` body plus `rechecked` (number of deals re-checked) and `changed`. If re-checking failed after saving, the body also has a `warning` string; the settings are saved. |
 | `400` | The body is not valid JSON or contains unknown keys. |
-| `409` | `{"error": "..."}`: `version` is not the current one. Reload and try again. |
+| `409` | `{"error": "...", "code": "stale"}`: `version` is not the current one. Reload and try again. |
 | `422` | `{"errors": {"rules.recurrence.window_days": "must be between 1 and 180 days"}}`: all validation problems, keyed by field path. |
 
 A save with no differences is not stored as a new version.
@@ -131,7 +133,7 @@ Body `{ "version": 7 }`, the version the client is looking at. Saves the version
 |---|---|
 | `200` | Undone. |
 | `400` | The body is not valid JSON. |
-| `409` | `{"error": "..."}`: `version` is not the current one, or there is no earlier version to go back to. |
+| `409` | `{"error": "...", "code": "..."}`: `stale` when `version` is not the current one, `nothing_to_undo` when there is no earlier version to go back to. Branch on `code`; the `error` text is for people. |
 | `500` | The undo could not be saved. |
 
 ## `GET /api/settings/history`

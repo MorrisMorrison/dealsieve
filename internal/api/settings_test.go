@@ -35,8 +35,8 @@ func TestGetAndPutSettings(t *testing.T) {
 	if resp.StatusCode != 200 || !strings.Contains(string(body), `"rechecked":7`) || !strings.Contains(string(body), `"changed":true`) {
 		t.Fatalf("PUT %d: %s", resp.StatusCode, body)
 	}
-	if resp, _ := h.do(t, "PUT", "/api/settings", put); resp.StatusCode != http.StatusConflict {
-		t.Errorf("stale PUT = %d, want 409", resp.StatusCode)
+	if resp, body := h.do(t, "PUT", "/api/settings", put); resp.StatusCode != http.StatusConflict || errorCode(body) != "stale" {
+		t.Errorf("stale PUT = %d %s, want 409 with code stale", resp.StatusCode, body)
 	}
 
 	bad := fmt.Sprintf(tpl, h.svc.Current().Version, 0)
@@ -87,8 +87,8 @@ func TestCrossOriginSettingsPutIsRejected(t *testing.T) {
 func TestUndoAndHistory(t *testing.T) {
 	h := newHarness(t)
 	undo := func() string { return fmt.Sprintf(`{"version":%d}`, h.svc.Current().Version) }
-	if resp, _ := h.do(t, "POST", "/api/settings/undo", undo()); resp.StatusCode != http.StatusConflict {
-		t.Errorf("undo with nothing to undo = %d", resp.StatusCode)
+	if resp, body := h.do(t, "POST", "/api/settings/undo", undo()); resp.StatusCode != http.StatusConflict || errorCode(body) != "nothing_to_undo" {
+		t.Errorf("undo with nothing to undo = %d %s, want 409 with code nothing_to_undo", resp.StatusCode, body)
 	}
 	if resp, _ := h.do(t, "POST", "/api/settings/undo", ""); resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("undo without a version = %d, want 400", resp.StatusCode)
@@ -98,8 +98,8 @@ func TestUndoAndHistory(t *testing.T) {
 	if resp.StatusCode != 200 || !strings.Contains(string(body), `Added muted category \"Elektronik\" (from a deal)`) {
 		t.Errorf("history %d: %s", resp.StatusCode, body)
 	}
-	if resp, _ := h.do(t, "POST", "/api/settings/undo", `{"version":1}`); resp.StatusCode != http.StatusConflict {
-		t.Errorf("undo with a stale version = %d, want 409", resp.StatusCode)
+	if resp, body := h.do(t, "POST", "/api/settings/undo", `{"version":1}`); resp.StatusCode != http.StatusConflict || errorCode(body) != "stale" {
+		t.Errorf("undo with a stale version = %d %s, want 409 with code stale", resp.StatusCode, body)
 	}
 	if resp, body := h.do(t, "POST", "/api/settings/undo", undo()); resp.StatusCode != 200 || !strings.Contains(string(body), `"muted_categories":[]`) {
 		t.Errorf("undo %d: %s", resp.StatusCode, body)
@@ -305,4 +305,12 @@ func TestSettingsBodyListsSites(t *testing.T) {
 	if got.Sites[1].Domain != "hotukdeals.com" {
 		t.Errorf("second site = %+v", got.Sites[1])
 	}
+}
+
+func errorCode(body []byte) string {
+	var e struct {
+		Code string `json:"code"`
+	}
+	json.Unmarshal(body, &e)
+	return e.Code
 }

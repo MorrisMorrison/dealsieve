@@ -18,6 +18,7 @@ import (
 	"github.com/MorrisMorrison/dealsieve/internal/judge"
 	"github.com/MorrisMorrison/dealsieve/internal/poller"
 	"github.com/MorrisMorrison/dealsieve/internal/product"
+	"github.com/MorrisMorrison/dealsieve/internal/rules"
 	"github.com/MorrisMorrison/dealsieve/internal/settings"
 	"github.com/MorrisMorrison/dealsieve/internal/settingsvc"
 	"github.com/MorrisMorrison/dealsieve/internal/store"
@@ -109,7 +110,27 @@ type dealJSON struct {
 	WatchlistHit bool             `json:"watchlist_hit"`
 	Reasons      []string         `json:"reasons"`
 	Opinion      *opinionJSON     `json:"opinion"`
+	Undo         *undoJSON        `json:"undo"`
 	PriceHistory *product.History `json:"price_history,omitempty"`
+}
+
+// undoJSON names the click that blocked a deal, so the page can offer to take
+// it back. kind is an action kind accepted by POST /api/actions/undo.
+type undoJSON struct {
+	Kind string `json:"kind"`
+}
+
+// undoOf derives the undo from the stored verdict's block code, the rule that
+// actually blocked the deal, never from its reason text. A deal blocked by
+// something else (or by a verdict stored before codes existed) has none.
+func undoOf(v store.Verdict) *undoJSON {
+	switch rules.Code(v.BlockCode) {
+	case rules.CodeHidden:
+		return &undoJSON{Kind: store.ActionHide}
+	case rules.CodeJunk:
+		return &undoJSON{Kind: store.ActionJunk}
+	}
+	return nil
 }
 
 func (s *Server) listDeals(w http.ResponseWriter, r *http.Request) {
@@ -179,6 +200,7 @@ func (s *Server) listDeals(w http.ResponseWriter, r *http.Request) {
 			LastSeen: l.LastSeen, InTrending: l.InTrending, InNew: l.InNew, Decision: l.Verdict.Decision,
 			Score: l.Verdict.Score, WatchlistHit: l.Verdict.WatchlistHit, Reasons: reasons,
 			Opinion:      op,
+			Undo:         undoOf(l.Verdict),
 			PriceHistory: histories[l.ID],
 		})
 	}
@@ -321,6 +343,13 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(v)
 }
+
+// Machine-readable "code" values on 409 answers of the settings endpoints; the
+// page branches on these, never on the error text.
+const (
+	CodeStale         = "stale"           // the version sent is not the current one
+	CodeNothingToUndo = "nothing_to_undo" // there is no earlier version
+)
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})

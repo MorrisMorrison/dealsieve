@@ -199,7 +199,7 @@ func (p *Pipeline) decide(ctx context.Context, rec store.DealRecord, af actionFa
 func verdictOf(rec store.DealRecord, res rules.Result, now time.Time) store.Verdict {
 	return store.Verdict{
 		DealID: rec.ID, Decision: string(res.Decision), Score: res.Score,
-		WatchlistHit: res.WatchlistHit, Reasons: res.Reasons, DecidedAt: now,
+		WatchlistHit: res.WatchlistHit, BlockCode: string(res.Code), Reasons: res.Reasons, DecidedAt: now,
 	}
 }
 

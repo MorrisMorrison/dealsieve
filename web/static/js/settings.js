@@ -744,7 +744,7 @@ async function onUndo() {
     renderAll();
     toast('Undone');
   } catch (err) {
-    if (err.status === 409 && err.message !== 'there is no earlier version to go back to') {
+    if (err.status === 409 && err.body?.code === 'stale') {
       showStale();
     } else {
       toast(err.message || 'Nothing to undo', { error: true });
@@ -785,7 +785,7 @@ async function onSave() {
       if (rest.length) banner(rest.map(([p, m]) => `${p}: ${m}`).join(' · '));
       $('.field-error')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       toast('Some settings need fixing', { error: true });
-    } else if (err.status === 409) {
+    } else if (err.status === 409 && err.body?.code === 'stale') {
       showStale();
     } else {
       banner(`Couldn't save: ${err.message}`);

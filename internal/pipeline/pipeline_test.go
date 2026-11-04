@@ -202,10 +202,10 @@ func TestRecomputeAppliesActions(t *testing.T) {
 	if _, err := h.p.RecomputeRecent(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if v := h.verdict(t, "mydealz:1"); v.Decision != "block" || v.Reasons[0] != "hidden by you" {
+	if v := h.verdict(t, "mydealz:1"); v.Decision != "block" || v.Reasons[0] != "hidden by you" || v.BlockCode != "hidden" {
 		t.Errorf("hidden deal = %+v", v)
 	}
-	if v := h.verdict(t, "mydealz:2"); v.Decision != "block" || v.Reasons[0] != "like a deal you marked as junk" {
+	if v := h.verdict(t, "mydealz:2"); v.Decision != "block" || v.Reasons[0] != "like a deal you marked as junk" || v.BlockCode != "junk" {
 		t.Errorf("junk deal = %+v", v)
 	}
 }
