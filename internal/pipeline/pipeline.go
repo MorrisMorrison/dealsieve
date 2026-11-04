@@ -63,23 +63,31 @@ type pendingSend struct {
 // and each (deal, channel) gets at most one attempt per call. The sends
 // happen after the lock is released; Ingest returns once they are recorded.
 func (p *Pipeline) Ingest(ctx context.Context, feed source.Feed, deals []source.Deal) error {
-	now := p.Now()
-	sends, err := p.ingest(ctx, feed, deals, now)
-	for _, s := range sends {
-		p.deliver(ctx, s, now)
+	sends, now, err := p.ingest(ctx, feed, deals)
+	i := 0
+	// Release every claim not yet released, even if a Send panics, so no
+	// pair stays claimed forever.
+	defer func() { p.release(sends[i:]) }()
+	for ; i < len(sends); i++ {
+		p.deliver(ctx, sends[i], now)
+		p.release(sends[i : i+1]) // after recording, so the next claim sees the result
 	}
 	return err
 }
 
 // ingest does Ingest's work under the lock and returns the claimed sends,
 // also on an error, so the ones decided before it still go out.
-func (p *Pipeline) ingest(ctx context.Context, feed source.Feed, deals []source.Deal, now time.Time) ([]pendingSend, error) {
+func (p *Pipeline) ingest(ctx context.Context, feed source.Feed, deals []source.Deal) ([]pendingSend, time.Time, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	// Read the clock under the lock: first_seen/last_seen must follow the
+	// order in which polls hold it (Go mutexes aren't FIFO), or recurrence
+	// ("only earlier deals") could later turn an earlier pass into recurring.
+	now := p.Now()
 	sends := p.retryPending(ctx)
 	facts, err := p.actionFacts(ctx)
 	if err != nil {
-		return sends, err
+		return sends, now, err
 	}
 	for _, d := range deals {
 		if p.sources != nil && !p.sources[d.Source] {
@@ -88,7 +96,7 @@ func (p *Pipeline) ingest(ctx context.Context, feed source.Feed, deals []source.
 		clean, key := fingerprint.Of(d.Merchant, d.Title)
 		rec, err := p.Store.UpsertDeal(ctx, d, feed, clean, key, now)
 		if err != nil {
-			return sends, fmt.Errorf("store deal %s: %w", d.ID, err)
+			return sends, now, fmt.Errorf("store deal %s: %w", d.ID, err)
 		}
 		if err := p.indexProduct(ctx, d); err != nil {
 			// Information only; the startup reindex repairs the table.
@@ -96,7 +104,7 @@ func (p *Pipeline) ingest(ctx context.Context, feed source.Feed, deals []source.
 		}
 		res, err := p.decide(ctx, rec, facts, now)
 		if err != nil {
-			return sends, err
+			return sends, now, err
 		}
 		if res.Decision == rules.Pass {
 			for _, ch := range p.channelsFor(rec, res) {
@@ -108,7 +116,7 @@ func (p *Pipeline) ingest(ctx context.Context, feed source.Feed, deals []source.
 			}
 		}
 	}
-	return sends, nil
+	return sends, now, nil
 }
 
 // ApplySettings swaps the rule engine and notifiers in place; a poll in
@@ -237,7 +245,7 @@ func (p *Pipeline) label(src string) string {
 
 // claim decides whether (deal, channel) gets an attempt now and, if so,
 // marks it as being sent and captures the notifier and message. Callers hold
-// p.mu; deliver releases the claim.
+// p.mu; Ingest releases the claim.
 func (p *Pipeline) claim(ctx context.Context, rec store.DealRecord, reasons []string, channel string) (pendingSend, bool) {
 	key := rec.ID + "|" + channel
 	if p.sending[key] {
@@ -266,14 +274,21 @@ func (p *Pipeline) claim(ctx context.Context, rec store.DealRecord, reasons []st
 	}, true
 }
 
-// deliver sends a claimed notification without the lock, records the attempt
-// and only then releases the claim, so the next claim sees the result.
-func (p *Pipeline) deliver(ctx context.Context, s pendingSend, now time.Time) {
-	defer func() {
-		p.mu.Lock()
+// release drops the claims, letting later calls decide those pairs again.
+func (p *Pipeline) release(sends []pendingSend) {
+	if len(sends) == 0 {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, s := range sends {
 		delete(p.sending, s.key)
-		p.mu.Unlock()
-	}()
+	}
+}
+
+// deliver sends a claimed notification without the lock and records the
+// attempt; the caller releases the claim afterwards.
+func (p *Pipeline) deliver(ctx context.Context, s pendingSend, now time.Time) {
 	sendErr := s.notifier.Send(ctx, s.msg)
 	if sendErr != nil {
 		if ctx.Err() != nil {

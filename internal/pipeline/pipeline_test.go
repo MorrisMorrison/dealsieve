@@ -348,6 +348,7 @@ func startBlockedIngest(t *testing.T, h *harness, b *blockingNotifier, feed sour
 
 // ingestOrError is h.ingest for use off the test goroutine.
 func ingestOrError(t *testing.T, h *harness, feed source.Feed, deals ...source.Deal) {
+	t.Helper()
 	if err := h.p.Ingest(ctx, feed, deals); err != nil {
 		t.Error(err)
 	}
@@ -438,6 +439,47 @@ func TestRetryInFlightIsNotSentAgainByAFreshDecision(t *testing.T) {
 	h.ingest(t, source.FeedTrending) // attempt 3: retried on the next poll
 	if sent, attempts, _ := h.st.NotificationState(ctx, "mydealz:1", "push"); !sent || attempts != 3 || h.push.count() != 1 {
 		t.Errorf("sent %v, attempts %d, delivered %d; want true, 3, 1", sent, attempts, h.push.count())
+	}
+}
+
+// first_seen/last_seen must follow the order in which polls hold the lock,
+// or recurrence ("only earlier deals") could flip an earlier pass later.
+func TestIngestReadsTheClockUnderTheLock(t *testing.T) {
+	h := newHarness(t, settings.When{Watchlist: true})
+	now := *h.now
+	calls := 0
+	h.p.Now = func() time.Time {
+		calls++
+		if h.p.mu.TryLock() {
+			h.p.mu.Unlock()
+			t.Error("Now read without holding the pipeline lock")
+		}
+		return now
+	}
+	h.ingest(t, source.FeedTrending, deal("1", "Example OLED TV", intp(150)))
+	if calls == 0 {
+		t.Fatal("Now never called")
+	}
+}
+
+type panickingNotifier struct{}
+
+func (panickingNotifier) Send(context.Context, notify.Message) error { panic("boom") }
+
+func TestPanickingSendLeavesNoClaim(t *testing.T) {
+	h := newHarness(t, settings.When{Watchlist: true})
+	h.p.Notify = []settings.NotifyRule{{When: settings.When{Watchlist: true}, Channels: []string{"bad", "push"}}}
+	h.p.Notifiers = map[string]notify.Notifier{"bad": panickingNotifier{}, "push": h.push}
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("Send's panic didn't reach the caller")
+			}
+		}()
+		_ = h.p.Ingest(ctx, source.FeedTrending, []source.Deal{deal("1", "Example OLED TV", intp(150))})
+	}()
+	if len(h.p.sending) != 0 {
+		t.Errorf("claims left after a panicking send: %v", h.p.sending)
 	}
 }
 
