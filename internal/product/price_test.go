@@ -23,6 +23,9 @@ func TestParsePrice(t *testing.T) {
 		{"GBP 3", 300, "GBP", true},
 		{"$5", 500, "USD", true},
 		{"19,99 zł", 1999, "PLN", true},
+		{"1.006€", 100600, "EUR", true}, // three digits after the separator: thousands
+		{"£6.79", 679, "GBP", true},
+		{"309,03zł", 30903, "PLN", true},
 		{"1 504,89€", 150489, "EUR", true},
 		{"118 500zł", 11850000, "PLN", true},
 		{"1 000 000€", 100000000, "EUR", true},
