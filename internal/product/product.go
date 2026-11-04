@@ -1,6 +1,7 @@
 package product
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 	"unicode"
@@ -8,11 +9,12 @@ import (
 	"github.com/MorrisMorrison/dealsieve/internal/fingerprint"
 )
 
-// Info is what Same compares: a title's model codes ("s24", "7800x3d"),
-// sizes ("128gb", "55zoll") and remaining cleaned words, each sorted and
-// distinct.
+// Info is what Same compares, each list sorted and distinct: a title's model
+// codes ("s24", "7800x3d", "iphone15"), sizes ("128gb", "55zoll"),
+// distinguishing words (variants, accessories, condition: "pro", "hülle",
+// "refurbished") and the remaining cleaned words.
 type Info struct {
-	Models, Sizes, Words []string
+	Models, Sizes, Markers, Words []string
 }
 
 // notSizes look like sizes but name a feature (network, resolution).
@@ -24,9 +26,35 @@ var notSizeUnits = map[string]bool{
 	"s": true, "d": true, "tage": true, "jahre": true, "monate": true,
 }
 
-// Of splits a title into model codes, sizes and other words. A number
-// followed by a unit word is one size ("16 GB" → "16gb").
+// markers tell variants, accessories and conditions of a product apart; two
+// titles are only the same product when they carry the same ones.
+var markers = wordSet(
+	"pro max ultra plus mini lite slim fe se air xl",
+	"hülle case cover coque funda etui panzerglas schutzglas schutzfolie folie displayschutz controller kabel cable adapter ladegerät charger netzteil halterung tasche bag bumper armband strap",
+	"refurbished generalüberholt gebraucht used renewed reconditionné reacondicionado odnowiony ware demo vorführgerät occasion",
+)
+
+// fillers are function and marketing words that say nothing about the product.
+var fillers = wordSet(
+	"pour de la le les des du avec et en sur un une au aux",
+	"para con el los las por y del al una",
+	"za na do od dla ze",
+	"il di per con gli",
+	"bestpreis tiefstpreis angebot deal deals preis neu new günstig cheap versandkostenfrei kostenlos gratis",
+)
+
+var (
+	bracketed = regexp.MustCompile(`\[[^\]]*\]`)
+	plusAfter = regexp.MustCompile(`([\p{L}\d])\+`)
+)
+
+// Of splits a title into model codes, sizes, markers and other words. Text in
+// square brackets is dropped and "S24+" reads "s24 plus". A number followed by
+// a unit word is one size ("16 GB" → "16gb"); a number with 4+ digits and "k"
+// is a model code ("14700k"). Only if the title has no model code, a word
+// directly followed by a short number is one ("iPhone 15" → "iphone15").
 func Of(title string) Info {
+	title = plusAfter.ReplaceAllString(bracketed.ReplaceAllString(title, " "), "$1 plus")
 	tokens := fingerprint.Tokens(title)
 	models, sizes, joined := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	for i := 0; i < len(tokens); i++ {
@@ -40,30 +68,52 @@ func Of(title string) Info {
 				i++
 			}
 		case fingerprint.IsQuantity(w):
-			if unit := strings.TrimLeftFunc(w, unicode.IsDigit); unit != w && !notSizeUnits[unit] {
+			num, unit := splitSize(w)
+			if unit == "k" && len(num) >= 4 {
+				models[w] = true
+			} else if unit != "" && !notSizeUnits[unit] {
 				sizes[w] = true
 			}
 		case strings.ContainsFunc(w, unicode.IsDigit) && strings.ContainsFunc(w, unicode.IsLetter):
 			models[w] = true
 		}
 	}
-	words := map[string]bool{}
+	consumed := map[string]bool{}
+	if len(models) == 0 {
+		for i := 0; i+1 < len(tokens); i++ {
+			w, n := tokens[i], tokens[i+1]
+			if !isSpacedCodeWord(w) || !isNumber(n) || len(n) > 5 {
+				continue
+			}
+			if i+2 < len(tokens) && fingerprint.IsUnit(tokens[i+2]) {
+				continue
+			}
+			models[w+n] = true
+			consumed[w] = true
+			i++
+		}
+	}
+	found, words := map[string]bool{}, map[string]bool{}
 	for _, w := range strings.Fields(fingerprint.CleanTitle(title)) {
-		if !models[w] && !joined[w] {
+		switch {
+		case models[w] || joined[w] || consumed[w] || fillers[w]:
+		case markers[w]:
+			found[w] = true
+		default:
 			words[w] = true
 		}
 	}
-	return Info{Models: sortedKeys(models), Sizes: sortedKeys(sizes), Words: sortedKeys(words)}
+	return Info{Models: sortedKeys(models), Sizes: sortedKeys(sizes), Markers: sortedKeys(found), Words: sortedKeys(words)}
 }
 
-// Same reports whether two titles name the same product: identical model
-// codes, the same sizes when both name any, and at least 60% of the smaller
-// set of other words shared.
+// Same reports whether two titles name the same product: identical non-empty
+// model codes, identical markers, no size unit both name with no value in
+// common, and at least 60% of the smaller set of other words shared.
 func Same(a, b Info) bool {
-	if len(a.Models) == 0 || !slices.Equal(a.Models, b.Models) {
+	if len(a.Models) == 0 || !slices.Equal(a.Models, b.Models) || !slices.Equal(a.Markers, b.Markers) {
 		return false
 	}
-	if len(a.Sizes) > 0 && len(b.Sizes) > 0 && !slices.Equal(a.Sizes, b.Sizes) {
+	if sizesConflict(a.Sizes, b.Sizes) {
 		return false
 	}
 	if len(a.Words) == 0 || len(b.Words) == 0 {
@@ -76,6 +126,59 @@ func Same(a, b Info) bool {
 		}
 	}
 	return shared*5 >= min(len(a.Words), len(b.Words))*3
+}
+
+// sizesConflict is true when some unit appears on both sides and the two
+// sides share no value for it; units named on one side only are ignored.
+func sizesConflict(a, b []string) bool {
+	values := func(sizes []string) map[string]map[string]bool {
+		m := map[string]map[string]bool{}
+		for _, s := range sizes {
+			num, unit := splitSize(s)
+			if m[unit] == nil {
+				m[unit] = map[string]bool{}
+			}
+			m[unit][num] = true
+		}
+		return m
+	}
+	va, vb := values(a), values(b)
+	for unit, nums := range va {
+		other, ok := vb[unit]
+		if !ok {
+			continue
+		}
+		common := false
+		for n := range nums {
+			common = common || other[n]
+		}
+		if !common {
+			return true
+		}
+	}
+	return false
+}
+
+// isSpacedCodeWord reports whether w can be the letters of a spaced model code
+// ("iphone" in "iPhone 15"): letters only, 2+ of them, not a filler or stopword.
+func isSpacedCodeWord(w string) bool {
+	return len([]rune(w)) >= 2 && !strings.ContainsFunc(w, unicode.IsDigit) &&
+		!fillers[w] && fingerprint.CleanTitle(w) != ""
+}
+
+func splitSize(s string) (num, unit string) {
+	unit = strings.TrimLeftFunc(s, unicode.IsDigit)
+	return s[:len(s)-len(unit)], unit
+}
+
+func wordSet(lists ...string) map[string]bool {
+	m := map[string]bool{}
+	for _, l := range lists {
+		for _, w := range strings.Fields(l) {
+			m[w] = true
+		}
+	}
+	return m
 }
 
 // Index is what the store keeps per deal to find candidates: the model codes
