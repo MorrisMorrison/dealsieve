@@ -15,6 +15,7 @@ type Verdict struct {
 	Decision     string
 	Score        int
 	WatchlistHit bool
+	BlockCode    string // the rules.Code of the block, "" for a pass or an older verdict
 	Reasons      []string
 	DecidedAt    time.Time
 }
@@ -55,11 +56,11 @@ func saveVerdict(ctx context.Context, x execer, v Verdict) error {
 	if err != nil {
 		return err
 	}
-	_, err = x.ExecContext(ctx, `INSERT INTO verdicts (deal_id, decision, score, watchlist_hit, reasons, decided_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+	_, err = x.ExecContext(ctx, `INSERT INTO verdicts (deal_id, decision, score, watchlist_hit, reasons, block_code, decided_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (deal_id) DO UPDATE SET decision = excluded.decision, score = excluded.score,
-			watchlist_hit = excluded.watchlist_hit, reasons = excluded.reasons, decided_at = excluded.decided_at`,
-		v.DealID, v.Decision, v.Score, v.WatchlistHit, string(raw), v.DecidedAt.Unix())
+			watchlist_hit = excluded.watchlist_hit, reasons = excluded.reasons, block_code = excluded.block_code, decided_at = excluded.decided_at`,
+		v.DealID, v.Decision, v.Score, v.WatchlistHit, string(raw), nullIfEmpty(v.BlockCode), v.DecidedAt.Unix())
 	return err
 }
 
@@ -88,17 +89,26 @@ func (s *Store) SaveVerdicts(ctx context.Context, vs []Verdict) error {
 func (s *Store) GetVerdict(ctx context.Context, dealID string) (Verdict, error) {
 	v := Verdict{DealID: dealID}
 	var reasons string
+	var code sql.NullString
 	var decided int64
-	err := s.db.QueryRowContext(ctx, `SELECT decision, score, watchlist_hit, reasons, decided_at FROM verdicts WHERE deal_id = ?`, dealID).
-		Scan(&v.Decision, &v.Score, &v.WatchlistHit, &reasons, &decided)
+	err := s.db.QueryRowContext(ctx, `SELECT decision, score, watchlist_hit, reasons, block_code, decided_at FROM verdicts WHERE deal_id = ?`, dealID).
+		Scan(&v.Decision, &v.Score, &v.WatchlistHit, &reasons, &code, &decided)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Verdict{}, ErrNotFound
 	}
 	if err != nil {
 		return Verdict{}, err
 	}
+	v.BlockCode = code.String
 	v.DecidedAt = fromUnix(decided)
 	return v, json.Unmarshal([]byte(reasons), &v.Reasons)
+}
+
+func nullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 // sourceFilter limits a query on deals d to sources; nil means every source,
@@ -155,7 +165,7 @@ func (s *Store) ListDeals(ctx context.Context, view string, sources []string, si
 	}
 	filter, fargs := sourceFilter(sources)
 	args := append(append([]any{since.Unix()}, fargs...), limit)
-	rows, err := s.db.QueryContext(ctx, `SELECT `+dealColumns+`, v.decision, v.score, v.watchlist_hit, v.reasons, v.decided_at
+	rows, err := s.db.QueryContext(ctx, `SELECT `+dealColumns+`, v.decision, v.score, v.watchlist_hit, v.reasons, v.block_code, v.decided_at
 		FROM deals d JOIN verdicts v ON v.deal_id = d.id
 		WHERE `+where+` AND d.last_seen >= ?`+filter+`
 		ORDER BY v.score DESC, d.first_seen DESC, d.id LIMIT ?`, args...)
@@ -167,13 +177,15 @@ func (s *Store) ListDeals(ctx context.Context, view string, sources []string, si
 	for rows.Next() {
 		var l Listed
 		var reasons string
+		var code sql.NullString
 		var decided int64
-		rec, err := scanDeal(rows, &l.Verdict.Decision, &l.Verdict.Score, &l.Verdict.WatchlistHit, &reasons, &decided)
+		rec, err := scanDeal(rows, &l.Verdict.Decision, &l.Verdict.Score, &l.Verdict.WatchlistHit, &reasons, &code, &decided)
 		if err != nil {
 			return nil, err
 		}
 		l.DealRecord = rec
 		l.Verdict.DealID = rec.ID
+		l.Verdict.BlockCode = code.String
 		l.Verdict.DecidedAt = fromUnix(decided)
 		if err := json.Unmarshal([]byte(reasons), &l.Verdict.Reasons); err != nil {
 			return nil, err

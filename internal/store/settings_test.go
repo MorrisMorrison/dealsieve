@@ -130,6 +130,9 @@ func TestMigrationDropsMuteActions(t *testing.T) {
 	s.AddAction(ctx, ActionMuteMerchant, "Example Air", t0)
 	s.AddAction(ctx, ActionHide, "mydealz:1", t0)
 	// Pretend only migration 001 ran, so 002 runs again on the next open.
+	if _, err := s.db.Exec(`ALTER TABLE verdicts DROP COLUMN block_code`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.db.Exec(`PRAGMA user_version = 1`); err != nil {
 		t.Fatal(err)
 	}

@@ -131,7 +131,10 @@ type dealsResponse struct {
 		Temperatures []int    `json:"temperatures"`
 		Decision     string   `json:"decision"`
 		Reasons      []string `json:"reasons"`
-		InTrending   bool     `json:"in_trending"`
+		Undo         *struct {
+			Kind string `json:"kind"`
+		} `json:"undo"`
+		InTrending bool `json:"in_trending"`
 	} `json:"deals"`
 	Counts map[string]int `json:"counts"`
 }
@@ -652,5 +655,40 @@ func TestListAndUndoClicks(t *testing.T) {
 	json.Unmarshal(body, &got)
 	if len(got.Actions) != 1 || got.Actions[0].Kind != store.ActionHide {
 		t.Errorf("after undo = %+v", got.Actions)
+	}
+}
+
+func TestListDealsUndo(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	now := time.Date(2026, 11, 3, 11, 0, 0, 0, time.UTC)
+	for _, c := range []struct{ id, code string }{
+		{"hid", "hidden"}, {"jun", "junk"}, {"mut", "muted_category"}, {"nocode", ""},
+	} {
+		d := source.Deal{ID: "mydealz:" + c.id, Source: "mydealz", URL: "https://www.mydealz.de/deals/x-" + c.id, Title: "Example " + c.id, Temperature: intp(150)}
+		if _, err := h.st.UpsertDeal(ctx, d, source.FeedTrending, "t", "shop|"+c.id, now); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.st.SaveVerdict(ctx, store.Verdict{DealID: d.ID, Decision: "block", BlockCode: c.code, Reasons: []string{"whatever text"}, DecidedAt: now}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, body := h.do(t, "GET", "/api/deals?view=blocked", "")
+	var got dealsResponse
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatal(err)
+	}
+	undo := map[string]string{}
+	for _, d := range got.Deals {
+		if d.Undo != nil {
+			undo[d.ID] = d.Undo.Kind
+		}
+	}
+	want := map[string]string{"mydealz:hid": "hide_deal", "mydealz:jun": "junk"}
+	if !maps.Equal(undo, want) {
+		t.Errorf("undo = %v, want %v", undo, want)
+	}
+	if strings.Contains(string(body), `"undo":{"kind":"x"`) || !strings.Contains(string(body), `"undo":null`) {
+		t.Errorf("deals without undo should carry null: %s", body)
 	}
 }

@@ -103,8 +103,10 @@ func (s *Server) respondSave(w http.ResponseWriter, res settingsvc.Result, err e
 		body := s.resultBody(res)
 		body["warning"] = recheckWarning
 		writeJSON(w, http.StatusOK, body)
-	case errors.Is(err, settingsvc.ErrConflict), errors.Is(err, settingsvc.ErrNothingToUndo):
-		writeError(w, http.StatusConflict, err.Error())
+	case errors.Is(err, settingsvc.ErrConflict):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error(), "code": CodeStale})
+	case errors.Is(err, settingsvc.ErrNothingToUndo):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error(), "code": CodeNothingToUndo})
 	case errors.As(err, &verr):
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"errors": verr})
 	case err != nil:

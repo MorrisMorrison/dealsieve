@@ -343,6 +343,10 @@ func TestMigrationDedupesActions(t *testing.T) {
 	if _, err := s.db.Exec(`DROP INDEX actions_kind_value`); err != nil {
 		t.Fatal(err)
 	}
+	// ...and before 007, whose column a rewind has to drop for the migration to run again.
+	if _, err := s.db.Exec(`ALTER TABLE verdicts DROP COLUMN block_code`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.db.Exec(`PRAGMA user_version = 5`); err != nil {
 		t.Fatal(err)
 	}
@@ -519,5 +523,28 @@ func TestClicks(t *testing.T) {
 	empty := openTest(t)
 	if none, err := empty.Clicks(ctx, 200); err != nil || len(none) != 0 {
 		t.Errorf("empty = %+v, %v", none, err)
+	}
+}
+
+func TestVerdictBlockCodeRoundTrip(t *testing.T) {
+	s := openTest(t)
+	mustUpsert(t, s, deal("a", nil), source.FeedTrending, "a", t0)
+	if err := s.SaveVerdict(ctx, Verdict{DealID: "mydealz:a", Decision: "block", BlockCode: "hidden", Reasons: []string{"hidden by you"}, DecidedAt: t0}); err != nil {
+		t.Fatal(err)
+	}
+	v, err := s.GetVerdict(ctx, "mydealz:a")
+	if err != nil || v.BlockCode != "hidden" {
+		t.Fatalf("GetVerdict = %+v, %v", v, err)
+	}
+	listed, err := s.ListDeals(ctx, ViewBlocked, nil, t0.Add(-time.Hour), 10)
+	if err != nil || len(listed) != 1 || listed[0].Verdict.BlockCode != "hidden" {
+		t.Fatalf("ListDeals = %+v, %v", listed, err)
+	}
+	// A verdict saved without a code (older rows) reads back empty.
+	if err := s.SaveVerdict(ctx, Verdict{DealID: "mydealz:a", Decision: "pass", DecidedAt: t0}); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := s.GetVerdict(ctx, "mydealz:a"); v.BlockCode != "" {
+		t.Errorf("BlockCode = %q, want empty", v.BlockCode)
 	}
 }

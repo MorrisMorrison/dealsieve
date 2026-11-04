@@ -2,11 +2,8 @@ import { areaPoints, sparkPoints } from './sparkline.js';
 import { age, ago, clock, heat, monthYear, ratingMark, sentence } from './format.js';
 import { historyChip, historyLine } from './history.js';
 
-// Blocked deals whose first reason came from a click can be undone on the spot.
-const UNDO_BY_REASON = {
-  'hidden by you': ['hide_deal', 'Unhide'],
-  'like a deal you marked as junk': ['junk', 'Not junk'],
-};
+// A blocked deal the server marks as blocked by a click (deal.undo) can be undone on the spot.
+const UNDO_LABELS = { hide_deal: 'Unhide', junk: 'Not junk' };
 
 const FEED_LABELS = { trending: 'trending', new: 'new deals' };
 
@@ -131,12 +128,11 @@ export function renderDetail(panel, deal, { onAction, onUndo, onBack, showSource
   node.querySelector('.feeds').textContent = feeds.join(', ') || '—';
 
   node.querySelector('.btn.primary').href = deal.url;
-  const undoable = blocked && UNDO_BY_REASON[deal.reasons[0]];
-  if (undoable) {
-    const [kind, text] = undoable;
-    const button = el('button', 'btn', text);
+  const undoKind = blocked ? deal.undo?.kind : null;
+  if (UNDO_LABELS[undoKind]) {
+    const button = el('button', 'btn', UNDO_LABELS[undoKind]);
     button.type = 'button';
-    button.addEventListener('click', () => onUndo(kind, deal));
+    button.addEventListener('click', () => onUndo(undoKind, deal));
     node.querySelector('.btn.primary').after(button);
   }
   for (const button of node.querySelectorAll('[data-kind]')) {

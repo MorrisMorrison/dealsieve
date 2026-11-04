@@ -121,3 +121,36 @@ func TestTemperatureThresholdPrecedence(t *testing.T) {
 		t.Errorf("watchlist reasons = %q", res.Reasons)
 	}
 }
+
+func TestBlockCodes(t *testing.T) {
+	hot := Deal{Title: "Example Laptop", Merchant: "Shop", Category: "Computer", Fingerprint: "shop|laptop", Temperature: intp(150), InTrending: true}
+	with := func(f func(*Deal)) Deal { d := hot; f(&d); return d }
+	last := time.Date(2026, 10, 12, 8, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name  string
+		deal  Deal
+		facts Facts
+		want  Code
+	}{
+		{"pass has no code", hot, Facts{}, ""},
+		{"hidden", hot, Facts{Hidden: true}, CodeHidden},
+		{"muted category", with(func(d *Deal) { d.Category = "fashion" }), Facts{}, CodeMutedCategory},
+		{"muted merchant", with(func(d *Deal) { d.Merchant = "Example Air" }), Facts{}, CodeMutedMerchant},
+		{"block keyword", with(func(d *Deal) { d.Title = "Gratisprobe" }), Facts{}, CodeBlockKeyword},
+		{"recurring", hot, Facts{Recurrence: 2, LastRecurrence: last}, CodeRecurring},
+		{"junk", hot, Facts{JunkFingerprints: map[string]bool{"shop|laptop": true}}, CodeJunk},
+		{"too cold", with(func(d *Deal) { d.Temperature = intp(5) }), Facts{}, CodeTooCold},
+		{"new-only", with(func(d *Deal) { d.InTrending = false }), Facts{}, CodeNewOnly},
+		{"hidden beats junk", hot, Facts{Hidden: true, JunkFingerprints: map[string]bool{"shop|laptop": true}}, CodeHidden},
+		{"junk beats a watchlist hit's pass", with(func(d *Deal) { d.Title = "Example RTX 5080" }), Facts{JunkFingerprints: map[string]bool{"shop|laptop": true}}, CodeJunk},
+		{"watchlist pass has no code", with(func(d *Deal) { d.Title = "Example RTX 5080"; d.Temperature = intp(5) }), Facts{}, ""},
+	}
+	e := engine()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := e.Evaluate(tt.deal, tt.facts).Code; got != tt.want {
+				t.Errorf("code = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

@@ -16,6 +16,21 @@ const (
 	Block Decision = "block"
 )
 
+// Code names the rule that blocked a deal. Clients branch on it; the reason
+// text is only for people and may change.
+type Code string
+
+const (
+	CodeHidden        Code = "hidden"
+	CodeMutedCategory Code = "muted_category"
+	CodeMutedMerchant Code = "muted_merchant"
+	CodeBlockKeyword  Code = "block_keyword"
+	CodeRecurring     Code = "recurring"
+	CodeJunk          Code = "junk"
+	CodeTooCold       Code = "too_cold"
+	CodeNewOnly       Code = "new_only"
+)
+
 // watchlistBoost sorts watchlist hits above everything else.
 const watchlistBoost = 1000
 
@@ -43,6 +58,7 @@ type Result struct {
 	Decision     Decision
 	Score        int
 	WatchlistHit bool
+	Code         Code     // why it was blocked; empty for a pass
 	Reasons      []string // the block reason, if any, comes first; a pass ends with its pass reasons
 }
 
@@ -93,8 +109,9 @@ func (e *Engine) Evaluate(d Deal, f Facts) Result {
 		res.Score += watchlistBoost
 		res.Reasons = append(res.Reasons, "watchlist: "+kw)
 	}
-	if reason, blocked := e.blockReason(d, f, title, res.WatchlistHit); blocked {
+	if code, reason, blocked := e.blockReason(d, f, title, res.WatchlistHit); blocked {
 		res.Decision = Block
+		res.Code = code
 		res.Reasons = append([]string{reason}, res.Reasons...)
 	} else {
 		res.Reasons = append(res.Reasons, e.passReasons(d, f, strings.ToLower(d.Category), res.WatchlistHit)...)
@@ -102,43 +119,43 @@ func (e *Engine) Evaluate(d Deal, f Facts) Result {
 	return res
 }
 
-func (e *Engine) blockReason(d Deal, f Facts, title string, watchlistHit bool) (string, bool) {
+func (e *Engine) blockReason(d Deal, f Facts, title string, watchlistHit bool) (Code, string, bool) {
 	category, merchant := strings.ToLower(d.Category), strings.ToLower(d.Merchant)
 	switch {
 	case f.Hidden:
-		return "hidden by you", true
+		return CodeHidden, "hidden by you", true
 	case category != "" && (e.mutedCategories[category] || f.MutedCategories[category]):
-		return "muted category: " + d.Category, true
+		return CodeMutedCategory, "muted category: " + d.Category, true
 	case merchant != "" && (e.mutedMerchants[merchant] || f.MutedMerchants[merchant]):
-		return "muted merchant: " + d.Merchant, true
+		return CodeMutedMerchant, "muted merchant: " + d.Merchant, true
 	}
 	if kw, ok := firstContained(title, e.blockKeywords); ok {
-		return "block keyword: " + kw, true
+		return CodeBlockKeyword, "block keyword: " + kw, true
 	}
 	// A watchlist hit is explicit intent; fingerprints drop plain numbers and sizes,
 	// so different products from one shop can still share a key and look recurring.
 	if f.Recurrence >= e.maxSeen && !watchlistHit {
-		return fmt.Sprintf("recurring: seen %d× before in %d days (last %s)",
+		return CodeRecurring, fmt.Sprintf("recurring: seen %d× before in %d days (last %s)",
 			f.Recurrence, int(e.window.Hours()/24), f.LastRecurrence.Format("2006-01-02")), true
 	}
 	if f.JunkFingerprints[d.Fingerprint] {
-		return "like a deal you marked as junk", true
+		return CodeJunk, "like a deal you marked as junk", true
 	}
 	if watchlistHit {
-		return "", false
+		return "", "", false
 	}
 	if d.Temperature != nil {
 		if minimum, by := e.minTemperatureFor(category, d.Source); *d.Temperature < minimum {
 			if by != "" {
-				return fmt.Sprintf("too cold: %d° < %d° (%s minimum)", *d.Temperature, minimum, settings.SourceLabel(by)), true
+				return CodeTooCold, fmt.Sprintf("too cold: %d° < %d° (%s minimum)", *d.Temperature, minimum, settings.SourceLabel(by)), true
 			}
-			return fmt.Sprintf("too cold: %d° < %d°", *d.Temperature, minimum), true
+			return CodeTooCold, fmt.Sprintf("too cold: %d° < %d°", *d.Temperature, minimum), true
 		}
 	}
 	if !d.InTrending {
-		return "new-only", true
+		return CodeNewOnly, "new-only", true
 	}
-	return "", false
+	return "", "", false
 }
 
 // passReasons says why a deal passed: its temperature against the minimum and
