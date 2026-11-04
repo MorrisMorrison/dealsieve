@@ -67,3 +67,10 @@ export function monthYear(iso, locale) {
   if (Number.isNaN(t)) return '';
   return new Date(t).toLocaleDateString(locale, { month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
+
+// What a Hide or Junk click is called in "Your clicks".
+export function clickKind(kind) {
+  if (kind === 'hide_deal') return 'Hidden';
+  if (kind === 'junk') return 'Marked as junk';
+  return kind;
+}

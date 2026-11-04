@@ -17,6 +17,8 @@ async function request(method, path, body) {
 export const getDeals = (view, source) => request('GET', `/api/deals?view=${encodeURIComponent(view)}${source ? `&source=${encodeURIComponent(source)}` : ''}`);
 export const addAction = (kind, dealId) => request('POST', '/api/actions', { kind, deal_id: dealId });
 export const undoAction = (kind, dealId) => request('POST', '/api/actions/undo', { kind, deal_id: dealId });
+export const getActions = () => request('GET', '/api/actions').then((r) => r.actions);
+export const deleteAction = (id) => request('DELETE', `/api/actions/${id}`);
 export const getStatus = () => request('GET', '/api/status').then((r) => ({ feeds: r.feeds, sources: r.sources ?? [] }));
 
 export const getSettings = () => request('GET', '/api/settings');

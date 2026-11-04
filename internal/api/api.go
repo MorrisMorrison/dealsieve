@@ -58,6 +58,7 @@ func init() {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/deals", s.listDeals)
+	mux.HandleFunc("GET /api/actions", s.listActions)
 	mux.HandleFunc("POST /api/actions", s.addAction)
 	mux.HandleFunc("POST /api/actions/undo", s.undoAction)
 	mux.HandleFunc("DELETE /api/actions/{id}", s.deleteAction)
@@ -240,6 +241,21 @@ func (s *Server) addAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, a)
+}
+
+// maxClicks bounds the "Your clicks" list.
+const maxClicks = 200
+
+func (s *Server) listActions(w http.ResponseWriter, r *http.Request) {
+	clicks, err := s.Store.Clicks(r.Context(), maxClicks)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	if clicks == nil {
+		clicks = []store.Click{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"actions": clicks})
 }
 
 func (s *Server) deleteAction(w http.ResponseWriter, r *http.Request) {

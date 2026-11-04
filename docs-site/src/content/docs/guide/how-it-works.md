@@ -70,7 +70,7 @@ Optionally, dealsieve sends one digest a day per channel, at the time and in the
 
 Every deal has buttons to open it, *Hide*, *Junk*, *Mute category* and *Mute shop*. *Junk* blocks everything that looks like that deal (same fingerprint) from then on. *Mute shop* and *Mute category* add the shop or category to your settings, so they show up in the Settings page and its history.
 
-**Undo.** After *Hide* or *Junk*, the deal shows an undo link right away. Mutes are undone from the Settings page: edit the list, or use *Undo last change* in the History section.
+**Undo.** After *Hide* or *Junk*, the deal shows an undo link right away. Later, or for an older click, the **Your clicks** section of the Settings page lists your Hide and Junk clicks and undoes any of them one by one. Mutes are undone from the Settings page: edit the list, or use *Undo last change* in the History section.
 
 **Suggestions.** When you hide or junk several deals from the same shop or category (three within 30 days by default), dealsieve suggests muting it, with the number of clicks and example titles. The inbox shows a banner when suggestions are waiting; on the Settings page you can **Apply** a suggestion (it becomes a mute in your settings) or **Dismiss** it for good. The thresholds are settings too. Suggestions are computed on demand from your clicks and never stored.
 

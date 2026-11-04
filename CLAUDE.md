@@ -22,7 +22,7 @@ dealsieve is a small self-hosted filter for deal feeds. One Go binary polls a so
 | `internal/digest/` | Daily digest: `Due`, `Compose`, and the `Runner` that sends due digests every minute outside the pipeline lock; per-channel window ends in `digest_state`, deals already listed per channel in `digest_sent` |
 | `internal/notify/` | `Notifier` interface, ntfy and Telegram implementations |
 | `internal/store/` | SQLite (modernc, pure Go): deals, temperature snapshots, verdicts, actions, notification bookkeeping, price-history index (`deal_products`); numbered migrations in `migrations/` tracked by `PRAGMA user_version` |
-| `internal/api/` | `net/http` mux: JSON API (`/api/deals`, `/api/actions`, `/api/settings*` (incl. `POST /api/settings/judge/test`), `/api/suggestions*`, `/api/categories`, `/api/status`), `/health`, the embedded pages |
+| `internal/api/` | `net/http` mux: JSON API (`/api/deals`, `/api/actions` (incl. `GET`, the "Your clicks" list), `/api/settings*` (incl. `POST /api/settings/judge/test`), `/api/suggestions*`, `/api/categories`, `/api/status`), `/health`, the embedded pages |
 | `internal/judge/` | LLM judge: OpenAI-compatible client, prompt/reply parsing, the background `Runner` |
 | `internal/version/` | `Version`, stamped with `-ldflags -X` from the `VERSION` build arg |
 | `web/` | The pages: `index.html` (inbox), `settings.html` (Settings), `static/css`, `static/js` (vanilla ES modules, no build step), embedded by `embed.go`; `static/manifest.webmanifest` + `static/icons/*.png` make it an installable home-screen app (icons derived from `favicon.svg`; the manifest's content type is registered in `internal/api`) |

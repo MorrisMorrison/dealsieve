@@ -1,8 +1,8 @@
 import {
-  applySuggestion, dismissSuggestion, getCategories, getHistory, getSettings, getSuggestions,
+  applySuggestion, deleteAction, dismissSuggestion, getActions, getCategories, getHistory, getSettings, getSuggestions,
   putSettings, testChannel, testDigest, testJudge, undoSettings,
 } from './api.js';
-import { sentence } from './format.js';
+import { ago, clickKind, sentence } from './format.js';
 import { initTheme } from './theme.js';
 import { addTo, changeCount, clone, nextChannelName, removeFrom, TIMEZONES, withMinTemperature } from './settings-model.js';
 
@@ -26,14 +26,14 @@ function h(tag, props = {}, ...kids) {
 
 const st = {
   saved: null, draft: null, version: 0, warnings: {}, judgeEnv: {},
-  suggestions: [], history: [], categories: [],
+  suggestions: [], history: [], categories: [], clicks: [],
   sites: [], errors: {}, addingChannel: false, stale: false,
 };
 let shown = new Set();
 
 const sections = {
   suggestions: renderSuggestions, watchlist: renderWatchlist, sources: renderSources, filters: renderFilters,
-  recurrence: renderRecurrence, notifications: renderNotifications, history: renderHistory,
+  recurrence: renderRecurrence, notifications: renderNotifications, clicks: renderClicks, history: renderHistory,
 };
 
 function render(name) {
@@ -610,6 +610,20 @@ function renderNotifications() {
   ];
 }
 
+function renderClicks() {
+  if (!st.clicks.length) {
+    return [h('p', { className: 'empty', textContent: 'No clicks yet. Hide or Junk a deal in the inbox and it shows up here.' })];
+  }
+  return [h('ul', { className: 'clicks' }, st.clicks.map((c) => h('li', {},
+    h('span', { className: 'what' },
+      h('span', { className: 'kind', textContent: clickKind(c.kind) }),
+      c.url
+        ? h('a', { href: c.url, target: '_blank', rel: 'noopener noreferrer', textContent: c.label })
+        : h('span', { textContent: c.label })),
+    h('span', { className: 'when', textContent: ago(c.created_at) }),
+    h('button', { type: 'button', className: 'btn small', textContent: 'Undo', on: { click: (e) => onUndoClick(c, e.currentTarget) } }))))];
+}
+
 function renderHistory() {
   const items = st.history.map((e) => h('li', {},
     h('span', { className: 'summary', textContent: e.summary?.length ? e.summary.join('; ') : 'Settings saved' }),
@@ -661,6 +675,22 @@ function adopt(doc) {
   st.errors = {};
   st.stale = false;
   hideBanner();
+}
+
+async function onUndoClick(click, btn) {
+  btn.disabled = true;
+  try {
+    await deleteAction(click.id);
+    st.clicks = st.clicks.filter((c) => c.id !== click.id);
+    render('clicks');
+    toast('Undone');
+  } catch (err) {
+    btn.disabled = false;
+    toast(err.message, { error: true });
+    return;
+  }
+  // The undo changes which mutes are suggested; a failed refresh can wait for a reload.
+  try { st.suggestions = await getSuggestions(); render('suggestions'); } catch { /* stale until the next load */ }
 }
 
 async function onApply(s, applyBtn, dismissBtn) {
@@ -813,8 +843,9 @@ async function init() {
     if (st.draft && changeCount(st.saved, st.draft) > 0) { e.preventDefault(); e.returnValue = ''; }
   });
   try {
-    const [doc, suggestions, history, categories] = await Promise.all([getSettings(), getSuggestions(), getHistory(), getCategories()]);
+    const [doc, suggestions, history, categories, clicks] = await Promise.all([getSettings(), getSuggestions(), getHistory(), getCategories(), getActions()]);
     adopt(doc);
+    st.clicks = clicks;
     st.suggestions = suggestions;
     st.history = history;
     st.categories = categories;

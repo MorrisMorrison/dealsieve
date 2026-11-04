@@ -464,3 +464,60 @@ func TestSaveVerdicts(t *testing.T) {
 		t.Errorf("empty: %v", err)
 	}
 }
+
+func TestClicks(t *testing.T) {
+	s := openTest(t)
+	mustUpsert(t, s, deal("a", nil), source.FeedTrending, "shop|alpha", t0)
+	older := deal("b", nil)
+	older.Title = "Older junk deal"
+	mustUpsert(t, s, older, source.FeedTrending, "shop|beta gamma", t0)
+	newer := deal("c", nil)
+	newer.Title = "Newer junk deal"
+	mustUpsert(t, s, newer, source.FeedTrending, "shop|beta gamma", t0.Add(time.Hour))
+
+	mustAdd := func(kind, value string, at time.Time) Action {
+		a, err := s.AddAction(ctx, kind, value, at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return a
+	}
+	mustAdd(ActionHide, "mydealz:a", t0)
+	mustAdd(ActionJunk, "shop|beta gamma", t0.Add(time.Minute))
+	mustAdd(ActionHide, "mydealz:gone", t0.Add(2*time.Minute))      // pruned deal
+	mustAdd(ActionJunk, "shop|nothing left", t0.Add(3*time.Minute)) // no deal with that key
+	mustAdd(ActionJunk, "-|bare", t0.Add(4*time.Minute))
+	mustAdd(ActionMuteCategory, "Elektronik", t0.Add(5*time.Minute)) // not a click
+
+	got, err := s.Clicks(ctx, 200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type row struct{ kind, label, url string }
+	var rows []row
+	for _, c := range got {
+		rows = append(rows, row{c.Kind, c.Label, c.URL})
+	}
+	want := []row{
+		{ActionJunk, "bare", ""},
+		{ActionJunk, "nothing left", ""},
+		{ActionHide, "A deal that is no longer stored", ""},
+		{ActionJunk, "Newer junk deal", "https://www.mydealz.de/deals/x-c"},
+		{ActionHide, "Deal a", "https://www.mydealz.de/deals/x-a"},
+	}
+	if !slices.Equal(rows, want) {
+		t.Errorf("clicks = %+v\nwant     %+v", rows, want)
+	}
+	if got[0].ID == 0 || !got[0].CreatedAt.Equal(t0.Add(4*time.Minute)) {
+		t.Errorf("first click = %+v", got[0])
+	}
+
+	limited, err := s.Clicks(ctx, 2)
+	if err != nil || len(limited) != 2 || limited[1].Label != "nothing left" {
+		t.Errorf("limited = %+v, %v", limited, err)
+	}
+	empty := openTest(t)
+	if none, err := empty.Clicks(ctx, 200); err != nil || len(none) != 0 {
+		t.Errorf("empty = %+v, %v", none, err)
+	}
+}
