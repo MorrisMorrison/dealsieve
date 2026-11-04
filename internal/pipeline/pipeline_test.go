@@ -66,7 +66,7 @@ func newHarness(t *testing.T, when settings.When) *harness {
 	push := &fakeNotifier{}
 	p := &Pipeline{
 		Store:     st,
-		Engine:    rules.New(baseRules, []string{"oled"}),
+		Engine:    rules.New(baseRules, []string{"oled"}, nil),
 		Notify:    []settings.NotifyRule{{When: when, Channels: []string{"push"}}},
 		Notifiers: map[string]notify.Notifier{"push": push},
 		Now:       func() time.Time { return now },

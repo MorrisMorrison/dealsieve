@@ -75,7 +75,7 @@ func (p *Pipeline) Ingest(ctx context.Context, feed source.Feed, deals []source.
 // ApplySettings swaps the rule engine and notifiers in place; a poll in
 // flight finishes with the old ones.
 func (p *Pipeline) ApplySettings(s settings.Settings) {
-	engine := rules.New(s.Rules, s.Watchlist)
+	engine := rules.New(s.Rules, s.Watchlist, s.SourceMinimums())
 	notifiers := notify.FromSettings(s.Channels, p.Env, p.HTTP)
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -157,7 +157,7 @@ func (p *Pipeline) evaluate(ctx context.Context, rec store.DealRecord, af action
 	}
 	return p.Engine.Evaluate(rules.Deal{
 		Title: rec.Title, Merchant: rec.Merchant, Category: rec.Category, Fingerprint: rec.Fingerprint,
-		Temperature: rec.Temperature, InTrending: rec.InTrending,
+		Source: rec.Source, Temperature: rec.Temperature, InTrending: rec.InTrending,
 	}, rules.Facts{
 		Hidden:           af.hidden[rec.ID],
 		JunkFingerprints: af.junk, Recurrence: n, LastRecurrence: last,
