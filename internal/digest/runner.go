@@ -180,13 +180,20 @@ func (r *Runner) compose(ctx context.Context, ch string, d settings.Digest, last
 	for _, rec := range append(hits, top...) {
 		ids = append(ids, rec.ID)
 	}
-	return Compose(items(hits), items(top), r.Env.PublicURL), ids, nil
+	ops, err := r.Store.Opinions(ctx, ids)
+	if err != nil {
+		return notify.Message{}, nil, err
+	}
+	return Compose(items(hits, ops), items(top, ops), r.Env.PublicURL), ids, nil
 }
 
-func items(recs []store.DealRecord) []Item {
+func items(recs []store.DealRecord, ops map[string]store.OpinionRecord) []Item {
 	out := make([]Item, len(recs))
 	for i, rec := range recs {
 		out[i] = Item{Title: rec.Title, URL: rec.URL, Price: rec.Price, Temperature: rec.Temperature}
+		if o, ok := ops[rec.ID]; ok {
+			out[i].Opinion = o.Rating + ": " + o.Reason
+		}
 	}
 	return out
 }

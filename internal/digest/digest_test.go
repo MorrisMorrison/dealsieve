@@ -94,6 +94,17 @@ func TestComposeSectionsAndSingular(t *testing.T) {
 	}
 }
 
+func TestComposeShowsOpinion(t *testing.T) {
+	top := []Item{{Title: "Example Air Flash Sale", URL: "https://www.mydealz.de/deals/x-1", Price: "19,99€", Opinion: "bad: fees <make> it €90"}}
+	m := Compose(nil, top, "")
+	if !strings.Contains(m.Body, "1. Example Air Flash Sale · 19,99€\n   ↳ bad: fees <make> it €90") {
+		t.Errorf("plain:\n%s", m.Body)
+	}
+	if !strings.Contains(m.HTML, "\n   ↳ bad: fees &lt;make&gt; it €90") {
+		t.Errorf("html:\n%s", m.HTML)
+	}
+}
+
 func TestComposeCutsLongTitles(t *testing.T) {
 	m := Compose(nil, []Item{{Title: strings.Repeat("x", 100), URL: "https://d.example.test/1"}}, "")
 	if !strings.Contains(m.Body, "1. "+strings.Repeat("x", 79)+"…") {
