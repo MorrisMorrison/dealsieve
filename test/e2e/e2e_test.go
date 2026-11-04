@@ -192,7 +192,7 @@ func buildBinary(t *testing.T) string {
 }
 
 func fixture(name string) string {
-	return filepath.Join("..", "..", "internal", "source", "mydealz", "testdata", name)
+	return filepath.Join("..", "..", "internal", "source", "pepper", "testdata", name)
 }
 
 func freePort(t *testing.T) string {

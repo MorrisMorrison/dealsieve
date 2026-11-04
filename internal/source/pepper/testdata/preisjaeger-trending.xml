@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:media="http://search.yahoo.com/mrss/" xmlns:pepper="http://www.pepper.com/rss" version="2.0">
+<channel>
+<title>preisjaeger</title>
+<link>https://www.preisjaeger.at</link>
+<item>
+<category><![CDATA[Elektronik]]></category>
+<pepper:merchant name="Example Shop" price="41,37€"/>
+<media:content medium="image" url="https://static.example.test/300001.jpg" width="100" height="100"/>
+<title><![CDATA[205° - Example Kopfhörer mit Geräuschunterdrückung]]></title>
+<link>https://www.preisjaeger.at/deals/example-kopfhoerer-300001</link>
+</item>
+<item>
+<category><![CDATA[Lebensmittel & Haushalt]]></category>
+<pepper:merchant name="Example Market" price="10€"/>
+<title><![CDATA[64° - Example Kaffeebohnen 1kg]]></title>
+<link>https://www.preisjaeger.at/deals/example-kaffeebohnen-300002</link>
+</item>
+</channel>
+</rss>

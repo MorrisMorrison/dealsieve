@@ -13,7 +13,7 @@ dealsieve is a small self-hosted filter for deal feeds. One Go binary polls a so
 | `internal/settings/` | The user settings document (JSON): `Defaults`, `Validate` (all problems keyed by field path), `Summarize` (change summaries), conversions for the rules engine and notifiers |
 | `internal/settingsvc/` | Saves, undoes and applies settings (versions, conflict check, swap into the pipeline, recompute) and serves suggestions |
 | `internal/suggest/` | Pure: mute suggestions from Hide/Junk clicks, settings and dismissals |
-| `internal/source/` | `Deal`, `Feed` and the `Fetcher` interface; `source/mydealz/` is the RSS adapter (fixtures in `testdata/`) |
+| `internal/source/` | `Deal`, `Feed` and the `Fetcher` interface; `source/pepper/` is the RSS adapter (fixtures in `testdata/`) |
 | `internal/fingerprint/` | `CleanTitle` + `Key`: merchant plus sorted distinct title words without plain numbers or sizes (`16gb`, `2x`); model codes like `s24` stay. Re-posts of the same offer share a key |
 | `internal/rules/` | The rule engine: `Evaluate(Deal, Facts) Result` — pure, no I/O |
 | `internal/pipeline/` | Ingest (store → evaluate → save verdict → notify), `RecomputeRecent` after a user action, `Prune`; serialised by one mutex |
@@ -45,7 +45,7 @@ Docs site (in `docs-site/`): `npm ci`, `npm run dev` (preview), `npm run build` 
 Running it needs nothing but a data dir (it writes `./data/dealsieve.db`, git-ignored); configure it on the Settings page.
 
 ## How tests isolate the outside world
-- **Nothing in the tests talks to mydealz, ntfy or Telegram.** Sources and notifiers take a base URL and an `*http.Client`; tests point them at `httptest.Server`s. The e2e test serves `internal/source/mydealz/testdata/*.xml` as `/rss/trending` and `/rss/alles` and sets `DEALSIEVE_MYDEALZ_URL` to that server.
+- **Nothing in the tests talks to mydealz, ntfy or Telegram.** Sources and notifiers take a base URL and an `*http.Client`; tests point them at `httptest.Server`s. The e2e test serves `internal/source/pepper/testdata/*.xml` as `/rss/trending` and `/rss/alles` and sets `DEALSIEVE_MYDEALZ_URL` to that server.
 - **Store tests use a real SQLite file** in `t.TempDir()`, never a shared database.
 - **Time is injected** (`Now func() time.Time` on the pipeline and API server); tests pass a fixed clock instead of sleeping.
 - **Fixtures are made up** (`Example Shop`, `Example Air`, `static.example.test`). Never copy real feed content into the repo. If the feed format changes, change the fixture by hand to match.

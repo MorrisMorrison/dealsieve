@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:media="http://search.yahoo.com/mrss/" xmlns:pepper="http://www.pepper.com/rss" version="2.0">
+<channel>
+<title>hotukdeals</title>
+<link>https://www.hotukdeals.com</link>
+<item>
+<category><![CDATA[Gaming]]></category>
+<pepper:merchant name="Example Shop" price="£6.79"/>
+<media:content medium="image" url="https://static.example.test/5000001.jpg" width="100" height="100"/>
+<title><![CDATA[312° - Example Wireless Controller for the Example Console]]></title>
+<link>https://www.hotukdeals.com/deals/example-wireless-controller-5000001</link>
+</item>
+<item>
+<category><![CDATA[Home & Living]]></category>
+<pepper:merchant name="Example Market"/>
+<title><![CDATA[88° - Free Example Tea Sample]]></title>
+<link>https://www.hotukdeals.com/deals/free-example-tea-sample-5000002</link>
+</item>
+</channel>
+</rss>

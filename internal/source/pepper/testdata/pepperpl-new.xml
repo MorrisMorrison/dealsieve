@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:media="http://search.yahoo.com/mrss/" xmlns:pepper="http://www.pepper.com/rss" version="2.0">
+<channel>
+<title>pepperpl</title>
+<link>https://www.pepper.pl</link>
+<item>
+<category><![CDATA[Elektronika]]></category>
+<pepper:merchant name="Example Shop" price="89zł"/>
+<media:content medium="image" url="https://static.example.test/1000003.jpg" width="100" height="100"/>
+<title><![CDATA[Example Słuchawki bezprzewodowe]]></title>
+<link>https://www.pepper.pl/promocje/example-sluchawki-bezprzewodowe-1000003</link>
+</item>
+<item>
+<category><![CDATA[Dom i mieszkanie]]></category>
+<pepper:merchant name="Example Market" price="15,50zł"/>
+<title><![CDATA[Example Zestaw ręczników kąpielowych]]></title>
+<link>https://www.pepper.pl/promocje/example-zestaw-recznikow-1000004</link>
+</item>
+</channel>
+</rss>

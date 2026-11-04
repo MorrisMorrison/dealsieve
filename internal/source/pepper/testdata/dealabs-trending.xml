@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:media="http://search.yahoo.com/mrss/" xmlns:pepper="http://www.pepper.com/rss" version="2.0">
+<channel>
+<title>dealabs</title>
+<link>https://www.dealabs.com</link>
+<item>
+<category><![CDATA[High-Tech]]></category>
+<pepper:merchant name="Example Shop" price="1 504,89€"/>
+<media:content medium="image" url="https://static.example.test/3000001.jpg" width="100" height="100"/>
+<title><![CDATA[152° - Example Ordinateur portable 16" pour le jeu]]></title>
+<link>https://www.dealabs.com/bons-plans/example-ordinateur-portable-3000001</link>
+</item>
+<item>
+<category><![CDATA[Maison & Habitat]]></category>
+<pepper:merchant name="Example Market" price="66,99€"/>
+<title><![CDATA[47° - Example Aspirateur sans fil]]></title>
+<link>https://www.dealabs.com/bons-plans/example-aspirateur-sans-fil-3000002</link>
+</item>
+</channel>
+</rss>

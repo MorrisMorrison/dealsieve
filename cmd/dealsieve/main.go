@@ -24,7 +24,7 @@ import (
 	"github.com/MorrisMorrison/dealsieve/internal/settings"
 	"github.com/MorrisMorrison/dealsieve/internal/settingsvc"
 	"github.com/MorrisMorrison/dealsieve/internal/source"
-	"github.com/MorrisMorrison/dealsieve/internal/source/mydealz"
+	"github.com/MorrisMorrison/dealsieve/internal/source/pepper"
 	"github.com/MorrisMorrison/dealsieve/internal/store"
 	"github.com/MorrisMorrison/dealsieve/internal/version"
 	"github.com/MorrisMorrison/dealsieve/web"
@@ -89,8 +89,10 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("recompute verdicts: %w", err)
 	}
 
-	src := &mydealz.Client{
-		BaseURL:   env.MydealzURL,
+	site, _ := pepper.Lookup("mydealz")
+	src := &pepper.Client{
+		Site:      site,
+		BaseURL:   env.SourceURLs[site.Name],
 		UserAgent: "dealsieve/" + version.Version + " (+" + repoURL + ")",
 		HTTP:      feedClient,
 		Log:       log,

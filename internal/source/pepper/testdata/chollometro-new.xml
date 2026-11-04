@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:media="http://search.yahoo.com/mrss/" xmlns:pepper="http://www.pepper.com/rss" version="2.0">
+<channel>
+<title>chollometro</title>
+<link>https://www.chollometro.com</link>
+<item>
+<category><![CDATA[Electrónica]]></category>
+<pepper:merchant name="Example Shop" price="24,95€"/>
+<media:content medium="image" url="https://static.example.test/2000003.jpg" width="100" height="100"/>
+<title><![CDATA[Example Altavoz Bluetooth portátil]]></title>
+<link>https://www.chollometro.com/ofertas/example-altavoz-bluetooth-2000003</link>
+</item>
+<item>
+<category><![CDATA[Hogar, vivienda y oficina]]></category>
+<pepper:merchant name="Example Market" price="8€"/>
+<title><![CDATA[Example Set de toallas de baño]]></title>
+<link>https://www.chollometro.com/ofertas/example-set-de-toallas-2000004</link>
+</item>
+</channel>
+</rss>
