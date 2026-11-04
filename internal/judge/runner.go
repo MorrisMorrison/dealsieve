@@ -13,10 +13,15 @@ import (
 const (
 	// perTick bounds one minute's work so a backlog drains gradually.
 	perTick     = 20
-	callTimeout = 45 * time.Second
+	callTimeout = 60 * time.Second
 	seenWithin  = 24 * time.Hour
 	retryAfter  = 10 * time.Minute
 	maxAttempts = 3
+	// An unreachable or busy server pauses the runner for minBackoff, doubling
+	// per consecutive failure up to maxBackoff, without costing the deals
+	// attempts.
+	minBackoff  = 10 * time.Minute
+	maxBackoff  = time.Hour
 	limitWindow = 24 * time.Hour
 )
 
@@ -40,6 +45,10 @@ type Runner struct {
 	lastErr     string
 	lastErrAt   time.Time
 	limitLogged time.Time
+	pausedUntil time.Time
+	backoff     time.Duration
+
+	testMu sync.Mutex // one Settings-page test at a time
 }
 
 type Status struct {
@@ -75,6 +84,9 @@ func (r *Runner) Tick(ctx context.Context) {
 		return
 	}
 	now := r.Now()
+	if r.paused(now) {
+		return
+	}
 	if _, err := r.Store.PruneJudgeCalls(ctx, now.Add(-2*limitWindow)); err != nil {
 		r.Log.Error("prune judge calls", "err", err)
 	}
@@ -98,16 +110,28 @@ func (r *Runner) Tick(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		if err := r.Store.RecordJudgeCall(ctx, now); err != nil {
-			r.Log.Error("record judge call", "err", err)
-			return
-		}
 		callCtx, cancel := context.WithTimeout(ctx, callTimeout)
 		op, err := j.Judge(callCtx, Deal{Title: rec.Title, Merchant: rec.Merchant, Price: rec.Price, Category: rec.Category, Temperature: rec.Temperature})
 		cancel()
 		if ctx.Err() != nil {
 			return // shutting down: not the deal's fault
 		}
+		// Counted after the call so an unreachable server doesn't eat the limit.
+		if reachedServer(err) {
+			if rerr := r.Store.RecordJudgeCall(ctx, now); rerr != nil {
+				r.Log.Error("record judge call", "err", rerr)
+				return
+			}
+		}
+		if err != nil && Retryable(err) {
+			// Busy, rate-limited or down: keep the deal a candidate and pause.
+			msg := Reason(err)
+			r.setErr(msg, now)
+			pause := r.startPause(now)
+			r.Log.Warn("judge unavailable", "deal", rec.ID, "err", msg, "pause", pause)
+			return
+		}
+		r.resetBackoff()
 		o := store.OpinionRecord{DealID: rec.ID, Model: s.Model, JudgedAt: now}
 		if err != nil {
 			o.Status, o.Error = store.OpinionFailed, Reason(err)
@@ -115,15 +139,38 @@ func (r *Runner) Tick(ctx context.Context) {
 			r.Log.Warn("judge failed", "deal", rec.ID, "err", o.Error)
 		} else {
 			o.Status, o.Rating, o.Reason = store.OpinionOK, string(op.Rating), op.Reason
+			r.setErr("", time.Time{})
 		}
 		if serr := r.Store.SaveOpinion(ctx, o); serr != nil {
 			r.Log.Error("save opinion", "deal", rec.ID, "err", serr)
 			return
 		}
-		if err != nil && Retryable(err) {
-			return // busy or rate-limited; later ticks retry
-		}
 	}
+}
+
+func (r *Runner) paused(now time.Time) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return now.Before(r.pausedUntil)
+}
+
+// startPause doubles the back-off (10 min up to 1 h) and returns the pause.
+func (r *Runner) startPause(now time.Time) time.Duration {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.backoff == 0 {
+		r.backoff = minBackoff
+	} else {
+		r.backoff = min(r.backoff*2, maxBackoff)
+	}
+	r.pausedUntil = now.Add(r.backoff)
+	return r.backoff
+}
+
+func (r *Runner) resetBackoff() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.backoff, r.pausedUntil = 0, time.Time{}
 }
 
 // logLimit logs the reached limit once per window instead of every minute.
@@ -156,6 +203,10 @@ func (r *Runner) Status(ctx context.Context) (Status, error) {
 // Test asks the model about SampleDeal with unsaved settings. It doesn't
 // count towards the daily limit and stores nothing.
 func (r *Runner) Test(ctx context.Context, j settings.Judge) TestResult {
+	if !r.testMu.TryLock() {
+		return TestResult{Error: "a test is already running"}
+	}
+	defer r.testMu.Unlock()
 	callCtx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
 	op, err := r.New(j).Judge(callCtx, SampleDeal)
@@ -166,8 +217,10 @@ func (r *Runner) Test(ctx context.Context, j settings.Judge) TestResult {
 }
 
 // Wake makes Run tick now instead of at the next minute, e.g. right after
-// the judge was turned on. It never blocks.
+// the judge was turned on, and ends a back-off pause so that fixing the model
+// or URL is retried at once. It never blocks.
 func (r *Runner) Wake() {
+	r.resetBackoff()
 	select {
 	case r.wakeCh() <- struct{}{}:
 	default:

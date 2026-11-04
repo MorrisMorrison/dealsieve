@@ -136,26 +136,138 @@ func TestTickPerTickCap(t *testing.T) {
 	}
 }
 
-func TestTickRetryableErrorStopsTick(t *testing.T) {
+func (h *harness) calls24h(t *testing.T) int {
+	t.Helper()
+	st, err := h.r.Status(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st.Calls24h
+}
+
+func (h *harness) tickAt(d time.Duration) {
+	h.now = t0.Add(d)
+	h.r.Tick(context.Background())
+}
+
+func TestTickRetryableErrorPausesWithoutUsingAttempts(t *testing.T) {
 	h := newHarness(t)
 	h.addDeal(t, "a", "pass")
 	h.addDeal(t, "b", "pass")
 	h.judge.err = func(string) error { return &HTTPError{Status: 429} }
 	ctx := context.Background()
-	h.r.Tick(ctx)
+	h.tickAt(0)
 	if len(h.judge.calls) != 1 {
 		t.Fatalf("calls = %v, want 1 (stop after a 429)", h.judge.calls)
+	}
+	if _, err := h.st.GetOpinion(ctx, "mydealz:"+h.judge.calls[0]); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("a retryable failure must not store an opinion row: %v", err)
 	}
 	st, err := h.r.Status(ctx)
 	if err != nil || st.LastError != "HTTP 429" || !st.LastErrorAt.Equal(t0) || st.Calls24h != 1 {
 		t.Fatalf("status = %+v, %v", st, err)
 	}
-	// Non-retryable errors move on to the next deal.
-	h.judge.err = func(string) error { return ErrBadReply }
-	h.now = t0.Add(time.Minute)
-	h.r.Tick(ctx)
+	h.tickAt(time.Minute)
+	h.tickAt(9 * time.Minute)
+	if len(h.judge.calls) != 1 {
+		t.Fatalf("calls = %v, want no call while paused", h.judge.calls)
+	}
+	h.tickAt(11 * time.Minute)
+	if len(h.judge.calls) != 2 || h.judge.calls[0] != h.judge.calls[1] {
+		t.Fatalf("calls = %v, want the same deal tried again after the pause", h.judge.calls)
+	}
+}
+
+func TestTickBackoffDoublesAndCaps(t *testing.T) {
+	h := newHarness(t)
+	h.addDeal(t, "a", "pass")
+	h.judge.err = func(string) error { return &HTTPError{Status: 503} }
+	at := time.Duration(0)
+	for i, pause := range []time.Duration{10 * time.Minute, 20 * time.Minute, 40 * time.Minute, time.Hour, time.Hour} {
+		h.tickAt(at)
+		if len(h.judge.calls) != i+1 {
+			t.Fatalf("step %d: calls = %d", i, len(h.judge.calls))
+		}
+		h.tickAt(at + pause - time.Second)
+		if len(h.judge.calls) != i+1 {
+			t.Fatalf("step %d: called before the %v pause ended", i, pause)
+		}
+		at += pause
+	}
+}
+
+func TestTickSuccessResetsBackoff(t *testing.T) {
+	h := newHarness(t)
+	h.addDeal(t, "a", "pass")
+	h.judge.err = func(string) error { return &HTTPError{Status: 503} }
+	h.tickAt(0)
+	h.tickAt(11 * time.Minute) // second failure: pause is now 20 min
+	h.judge.err = nil
+	h.tickAt(32 * time.Minute) // succeeds
+	if st, _ := h.r.Status(context.Background()); st.LastError != "" || !st.LastErrorAt.IsZero() {
+		t.Fatalf("status = %+v, want the error cleared", st)
+	}
+	h.addDeal(t, "b", "pass")
+	h.judge.err = func(string) error { return &HTTPError{Status: 503} }
+	n := len(h.judge.calls)
+	h.tickAt(32 * time.Minute) // fails again: the pause starts over at 10 min
+	h.tickAt(43 * time.Minute)
+	if len(h.judge.calls) != n+2 {
+		t.Fatalf("calls = %v, want a retry 11 min after the first new failure", h.judge.calls)
+	}
+}
+
+func TestWakeClearsPause(t *testing.T) {
+	h := newHarness(t)
+	h.addDeal(t, "a", "pass")
+	h.judge.err = func(string) error { return &HTTPError{Status: 503} }
+	h.tickAt(0)
+	h.judge.err = nil
+	h.tickAt(time.Minute)
+	if len(h.judge.calls) != 1 {
+		t.Fatalf("calls = %v, want paused", h.judge.calls)
+	}
+	h.r.Wake()
+	h.tickAt(time.Minute)
 	if len(h.judge.calls) != 2 {
-		t.Fatalf("calls = %v, want b judged next (a waits 10 min)", h.judge.calls)
+		t.Fatalf("calls = %v, want a retry right after Wake", h.judge.calls)
+	}
+}
+
+func TestTickNonRetryableMovesOn(t *testing.T) {
+	h := newHarness(t)
+	h.addDeal(t, "a", "pass")
+	h.addDeal(t, "b", "pass")
+	h.judge.err = func(string) error { return ErrBadReply }
+	h.tickAt(0)
+	if len(h.judge.calls) != 2 {
+		t.Fatalf("calls = %v, want both deals tried", h.judge.calls)
+	}
+	o, err := h.st.GetOpinion(context.Background(), "mydealz:a")
+	if err != nil || o.Status != store.OpinionFailed || o.Attempts != 1 {
+		t.Fatalf("opinion = %+v, %v", o, err)
+	}
+	h.tickAt(time.Minute) // no pause after a bad reply, but the deals wait 10 min
+	if len(h.judge.calls) != 2 {
+		t.Fatalf("calls = %v", h.judge.calls)
+	}
+}
+
+func TestTickCountsCallsOnlyWhenTheServerWasReached(t *testing.T) {
+	h := newHarness(t)
+	h.addDeal(t, "a", "pass")
+	h.judge.err = func(string) error {
+		return fmt.Errorf("judge request: %w", &net.OpError{Op: "dial", Err: errors.New("refused")})
+	}
+	h.tickAt(0)
+	if len(h.judge.calls) != 1 || h.calls24h(t) != 0 {
+		t.Fatalf("calls = %v, counted = %d, want 1 call and 0 counted", h.judge.calls, h.calls24h(t))
+	}
+	h.judge.err = func(string) error { return &HTTPError{Status: 502} }
+	h.r.Wake()
+	h.tickAt(time.Minute)
+	if len(h.judge.calls) != 2 || h.calls24h(t) != 1 {
+		t.Fatalf("calls = %v, counted = %d, want an HTTP 502 counted", h.judge.calls, h.calls24h(t))
 	}
 }
 
@@ -246,3 +358,30 @@ func TestTickConnectionErrorStopsTick(t *testing.T) {
 		t.Fatalf("calls = %v, want 1 (stop when the server is unreachable)", h.judge.calls)
 	}
 }
+
+func TestTestRefusesConcurrentRuns(t *testing.T) {
+	h := newHarness(t)
+	release := make(chan struct{})
+	started := make(chan struct{})
+	h.r.New = func(settings.Judge) Judge {
+		return judgeFunc(func(context.Context, Deal) (Opinion, error) {
+			close(started)
+			<-release
+			return Opinion{Rating: Good, Reason: "ok"}, nil
+		})
+	}
+	done := make(chan TestResult)
+	go func() { done <- h.r.Test(context.Background(), settings.Judge{Model: "m", DailyLimit: 1}) }()
+	<-started
+	if res := h.r.Test(context.Background(), settings.Judge{Model: "m", DailyLimit: 1}); res.OK || res.Error != "a test is already running" {
+		t.Fatalf("second test = %+v", res)
+	}
+	close(release)
+	if res := <-done; !res.OK {
+		t.Fatalf("first test = %+v", res)
+	}
+}
+
+type judgeFunc func(context.Context, Deal) (Opinion, error)
+
+func (f judgeFunc) Judge(ctx context.Context, d Deal) (Opinion, error) { return f(ctx, d) }

@@ -65,7 +65,7 @@ Nothing else: no watchlist, no settings, no history, no other deals, no keys. Th
 
 - **Daily limit.** At most this many calls in any rolling 24 hours. When it is reached the judge waits until older calls fall out of the window.
 - **Failures count.** Every call counts toward the limit, including failed ones, so a broken setup cannot run up a bill.
-- **Retries.** A failed call is retried after 10 minutes, at most 3 attempts per deal. After that the deal stays without an opinion.
+- **Retries and back-off.** If the server is busy (HTTP 429 or 5xx), times out or can't be reached, dealsieve pauses the judge for 10 minutes, then 20, 40 and at most 1 hour while it keeps failing. The deals keep waiting and don't lose an attempt, and an unreachable server doesn't use up the daily limit. Saving the settings ends the pause, so fixing the model or the URL is retried at once. Bad replies and other errors are retried 10 minutes later, at most 3 attempts per deal; after that the deal stays without an opinion. Each request is cut off after 60 seconds.
 - **Back-off.** On a rate limit, a server error, a timeout or an unreachable server the judge stops and tries again the next minute.
 - **After a save.** Saving the settings makes the judge check for work right away.
 

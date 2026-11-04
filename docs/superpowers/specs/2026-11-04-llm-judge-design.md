@@ -104,9 +104,10 @@ type Noop struct{} // returns ErrDisabled
      with `perTick = 20`. Return if `budget <= 0` (log "judge daily limit reached" once per
      limit window, not every minute).
   3. `cands := Store.JudgeCandidates(now, budget)`.
-  4. For each candidate, in order: record the call (`Store.RecordJudgeCall(now)`), call
-     `Judge` with a per-call context of 45 s, then `Store.SaveOpinion` with status ok or failed.
-     On a `Retryable` error stop the tick (the server is overloaded or rate-limiting); other
+  4. For each candidate, in order: call `Judge` with a per-call context of 60 s, record the
+     call (`Store.RecordJudgeCall(now)`) unless the request never reached a server (transport
+     error, cancellation), then `Store.SaveOpinion` with status ok or failed. On a `Retryable`
+     error nothing is saved and the tick stops; the runner pauses (see Error handling). Other
      errors move on to the next deal. Stop when `ctx` is cancelled, without storing a failure.
   The runner keeps the last error (`Reason`) and its time in memory, under a mutex, for
   `Status()`.
@@ -215,10 +216,13 @@ top list, opinions included). The runner fills it from `Store.Opinions`.
 ## Error handling
 
 - Judge off, or no model: nothing happens; the page shows no opinions for new deals.
-- Server unreachable / 5xx / 429: the deal is stored as failed (attempt counted), the tick
-  stops, later ticks retry after 10 minutes, up to 3 attempts; then the deal stays without an
-  opinion. The last error shows in `/api/status` and the Settings block.
-- Unparseable reply: failed attempt, same retry rule.
+- Server unreachable / timeout / 5xx / 429: nothing is stored for the deal (no attempt
+  charged), the tick stops and the runner pauses for 10 minutes, doubling per consecutive
+  failure up to 1 hour; a reply (success or a non-retryable failure) resets it, and saving the
+  settings (`Wake`) ends the pause. A request that never reached a server isn't counted
+  towards the daily limit. The last error shows in `/api/status` and the Settings block until
+  the next success.
+- Unparseable reply and other non-retryable errors: failed attempt, retried after 10 minutes, up to 3 attempts, then the deal stays without an opinion.
 - Shutdown: the in-flight call is cancelled and nothing is stored for it.
 
 ## Privacy and safety
@@ -241,7 +245,7 @@ All without network access:
   body text, timeout, oversized/garbage body.
 - `Runner` with a fake `Judge`, a fixed clock and a temp SQLite store: disabled → no calls;
   only passed deals; one call per deal; daily limit across ticks; per-tick cap; failed deal
-  retried after 10 minutes and given up after 3 attempts; retryable error stops the tick;
+  retried after 10 minutes and given up after 3 attempts; retryable error stops the tick without an attempt and pauses with doubling back-off (reset by success or `Wake`); transport errors aren't counted;
   `Test` stores nothing.
 - `store`: candidates query, upsert/attempts, `Opinions`, call counting, prune.
 - `settings`: defaults, validation, summary lines.

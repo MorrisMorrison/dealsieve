@@ -103,6 +103,20 @@ func Retryable(err error) bool {
 	return isTimeout(err) || errors.As(err, &ne)
 }
 
+// reachedServer reports whether a request plausibly got to the server, so it
+// may have cost the user money: a pure transport error (nothing listening, DNS
+// failure) or a cancellation did not.
+func reachedServer(err error) bool {
+	var he *HTTPError
+	switch {
+	case err == nil, errors.As(err, &he), errors.Is(err, ErrBadReply), errors.Is(err, errNoReply):
+		return true
+	case errors.Is(err, context.Canceled):
+		return false
+	}
+	return isTimeout(err)
+}
+
 func isTimeout(err error) bool {
 	var ne net.Error
 	return errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &ne) && ne.Timeout())

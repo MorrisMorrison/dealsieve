@@ -83,7 +83,8 @@ func run(ctx context.Context) error {
 	// The judge exists before the settings service: Load applies settings,
 	// which wakes it. Its Settings closure only runs later.
 	var svc *settingsvc.Service
-	judgeClient := &http.Client{Timeout: 30 * time.Second}
+	// No client timeout: each call is bounded by its context in judge.Runner.
+	judgeClient := &http.Client{}
 	userAgent := "dealsieve/" + version.Version + " (+" + repoURL + ")"
 	jr := &judge.Runner{
 		Store: st, Settings: func() settings.Settings { return svc.Current().Settings },

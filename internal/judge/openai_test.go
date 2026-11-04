@@ -3,7 +3,10 @@ package judge
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -125,5 +128,27 @@ func TestReasonUnreachable(t *testing.T) {
 	}
 	if Reason(ErrDisabled) != "judge is off" {
 		t.Errorf("Reason(ErrDisabled) = %q", Reason(ErrDisabled))
+	}
+}
+
+func TestReachedServer(t *testing.T) {
+	refused := fmt.Errorf("judge request: %w", &net.OpError{Op: "dial", Err: errors.New("refused")})
+	for _, tc := range []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"success", nil, true},
+		{"HTTP 502", &HTTPError{Status: 502}, true},
+		{"HTTP 401", &HTTPError{Status: 401}, true},
+		{"bad reply", fmt.Errorf("%w: eof", ErrBadReply), true},
+		{"no reply", errNoReply, true},
+		{"timeout", fmt.Errorf("judge request: %w", context.DeadlineExceeded), true},
+		{"connection refused", refused, false},
+		{"cancelled", fmt.Errorf("judge request: %w", context.Canceled), false},
+	} {
+		if got := reachedServer(tc.err); got != tc.want {
+			t.Errorf("%s: reachedServer = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }

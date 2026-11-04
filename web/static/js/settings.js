@@ -90,10 +90,10 @@ function select(options, value, onChange, label) {
     options.map(([v, text, disabled]) => h('option', { value: v, textContent: text, disabled: !!disabled })));
 }
 
-function numberInput(value, onInput, { min, label, width, pred } = {}) {
+function numberInput(value, onInput, { min, max, label, width, pred } = {}) {
   const input = h('input', {
     type: 'number', value: String(value),
-    attrs: { 'aria-label': label || '', step: 1, ...(min !== undefined ? { min } : {}) },
+    attrs: { 'aria-label': label || '', step: 1, ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) },
     on: {
       input: (e) => {
         if (pred) clearErrors(pred, input);
@@ -517,7 +517,7 @@ function judgeBlock() {
         test.disabled = false;
         status.hidden = false;
         status.className = res.ok ? 'status-ok' : 'status-err';
-        status.textContent = res.ok ? `Good: ${sentence(res.reason)}` : `Failed: ${res.error || 'unknown error'}`;
+        status.textContent = res.ok ? `${sentence(res.rating)}: ${res.reason}` : `Failed: ${res.error || 'unknown error'}`;
       },
     },
   });
@@ -535,7 +535,7 @@ function judgeBlock() {
         on: { input: (e) => { j.model = e.target.value; clearErrors(exact('judge.model'), e.target); updateBar(); } },
       }),
       h('span', { className: 'kw', textContent: 'Requests per day' }),
-      numberInput(j.daily_limit, (v) => { j.daily_limit = v; }, { min: 1, label: 'Judge requests per day', width: '80px', pred: exact('judge.daily_limit') })),
+      numberInput(j.daily_limit, (v) => { j.daily_limit = v; }, { min: 1, max: 5000, label: 'Judge requests per day', width: '80px', pred: exact('judge.daily_limit') })),
     h('div', {},
       h('label', { className: 'kw', textContent: 'Notes for the judge' }),
       h('textarea', {

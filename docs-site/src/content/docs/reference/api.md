@@ -21,7 +21,7 @@ The web page talks to the backend only through this JSON API. Errors are returne
 | `POST /api/suggestions/apply` | Accept a suggestion. |
 | `POST /api/suggestions/dismiss` | Dismiss a suggestion for good. |
 | `GET /api/categories` | Categories seen in stored deals. |
-| `GET /api/status` | Per feed: last successful poll and last error. |
+| `GET /api/status` | Per feed: last successful poll and last error; plus a `judge` block (see below). |
 | `GET /health` | Liveness for monitors. |
 
 ## `GET /api/deals`
