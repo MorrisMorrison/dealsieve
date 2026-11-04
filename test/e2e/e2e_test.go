@@ -26,6 +26,7 @@ import (
 
 type deal struct {
 	ID      string   `json:"id"`
+	Source  string   `json:"source"`
 	Title   string   `json:"title"`
 	Reasons []string `json:"reasons"`
 }
@@ -44,6 +45,18 @@ func TestEndToEnd(t *testing.T) {
 		}
 	}))
 	defer feeds.Close()
+
+	hot := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/rss/trending":
+			http.ServeFile(w, r, fixture("hotukdeals-trending.xml"))
+		case "/rss/new":
+			http.ServeFile(w, r, fixture("hotukdeals-new.xml"))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer hot.Close()
 
 	var mu sync.Mutex
 	var pushes []map[string]any
@@ -85,6 +98,7 @@ func TestEndToEnd(t *testing.T) {
 		"DEALSIEVE_DATA_DIR="+dataDir,
 		"DEALSIEVE_LISTEN="+listen,
 		"DEALSIEVE_MYDEALZ_URL="+feeds.URL,
+		"DEALSIEVE_HOTUKDEALS_URL="+hot.URL,
 	)
 	var logs bytes.Buffer
 	cmd := exec.Command(bin)
@@ -171,6 +185,33 @@ func TestEndToEnd(t *testing.T) {
 		t.Errorf("watchlist after muting the shop = %+v", got)
 	}
 
+	// A second site is turned on live and its deals show up with their source
+	// (the shop mute from above is lifted so its fixture deal can pass).
+	resp, err = http.Get(base + "/api/settings")
+	if err != nil {
+		t.Fatal(err)
+	}
+	json.NewDecoder(resp.Body).Decode(&cur)
+	resp.Body.Close()
+	cur.Settings["rules"].(map[string]any)["muted_merchants"] = []string{}
+	cur.Settings["sources"] = map[string]any{
+		"mydealz":    map[string]any{"enabled": true},
+		"hotukdeals": map[string]any{"enabled": true},
+	}
+	put, _ = json.Marshal(map[string]any{"version": cur.Version, "settings": cur.Settings})
+	req, _ = http.NewRequest(http.MethodPut, base+"/api/settings", bytes.NewReader(put))
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT settings (hotukdeals): %v %v", resp, err)
+	}
+	resp.Body.Close()
+	waitFor(t, "a passed hotukdeals deal", func() bool { return len(getSourceDeals(base, "passed", "hotukdeals")) > 0 })
+	for _, d := range getSourceDeals(base, "passed", "hotukdeals") {
+		if d.Source != "hotukdeals" {
+			t.Errorf("deal %s has source %q, want hotukdeals", d.ID, d.Source)
+		}
+	}
+
 	hc := exec.Command(bin, "healthcheck")
 	hc.Env = env
 	if out, err := hc.CombinedOutput(); err != nil {
@@ -206,8 +247,14 @@ func freePort(t *testing.T) string {
 	return port
 }
 
-func getDeals(base, view string) []deal {
-	resp, err := http.Get(base + "/api/deals?view=" + view)
+func getDeals(base, view string) []deal { return getSourceDeals(base, view, "") }
+
+func getSourceDeals(base, view, source string) []deal {
+	u := base + "/api/deals?view=" + view
+	if source != "" {
+		u += "&source=" + source
+	}
+	resp, err := http.Get(u)
 	if err != nil {
 		return nil
 	}

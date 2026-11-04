@@ -3,7 +3,7 @@
 Guidance for Claude Code (and anyone else) working in this repository. Keep it short and correct: when behaviour, config, commands or layout change, update this file and `README.md` in the same PR.
 
 ## What this is
-dealsieve is a small self-hosted filter for deal feeds. One Go binary polls a source's feeds, stores every deal in SQLite, runs each one through an ordered rule engine that records *why* it passed or was blocked, serves the result on an embedded web page, and sends optional ntfy/Telegram notifications. Its first and only source is mydealz: the `trending` feed fills the page, the `new` feed (every new deal) is only matched against the watchlist. The design and its amendments are in `docs/superpowers/specs/2026-11-03-dealsieve-design.md`; the v1 plan in `docs/superpowers/plans/`.
+dealsieve is a small self-hosted filter for deal feeds. One Go binary polls a source's feeds, stores every deal in SQLite, runs each one through an ordered rule engine that records *why* it passed or was blocked, serves the result on an embedded web page, and sends optional ntfy/Telegram notifications. Its first source is mydealz; the other Pepper-network sites (hotukdeals, dealabs, preisjaeger, chollometro, pepper.pl) can be turned on in Settings. Per site, the `trending` feed fills the page, the `new` feed (every new deal) is only matched against the watchlist. The design and its amendments are in `docs/superpowers/specs/2026-11-03-dealsieve-design.md`; the v1 plan in `docs/superpowers/plans/`.
 
 ## Layout
 | Path | Responsibility |
@@ -45,7 +45,7 @@ Docs site (in `docs-site/`): `npm ci`, `npm run dev` (preview), `npm run build` 
 Running it needs nothing but a data dir (it writes `./data/dealsieve.db`, git-ignored); configure it on the Settings page.
 
 ## How tests isolate the outside world
-- **Nothing in the tests talks to mydealz, ntfy or Telegram.** Sources and notifiers take a base URL and an `*http.Client`; tests point them at `httptest.Server`s. The e2e test serves `internal/source/pepper/testdata/*.xml` as `/rss/trending` and `/rss/alles` and sets `DEALSIEVE_MYDEALZ_URL` to that server.
+- **Nothing in the tests talks to mydealz, ntfy or Telegram.** Sources and notifiers take a base URL and an `*http.Client`; tests point them at `httptest.Server`s. The e2e test serves the mydealz fixtures (`trending.xml`, `new.xml`) as `/rss/trending` and `/rss/alles` and the hotukdeals ones as `/rss/trending` and `/rss/new` from a second server, and sets `DEALSIEVE_MYDEALZ_URL` and `DEALSIEVE_HOTUKDEALS_URL` to them.
 - **Store tests use a real SQLite file** in `t.TempDir()`, never a shared database.
 - **Time is injected** (`Now func() time.Time` on the pipeline and API server); tests pass a fixed clock instead of sleeping.
 - **Fixtures are made up** (`Example Shop`, `Example Air`, `static.example.test`). Never copy real feed content into the repo. If the feed format changes, change the fixture by hand to match.
@@ -55,6 +55,7 @@ Running it needs nothing but a data dir (it writes `./data/dealsieve.db`, git-ig
 - **Rule order is the contract.** `rules.blockReason` checks, in order: hidden → muted category → muted merchant → block keyword → recurring → junk fingerprint → (watchlist hits stop here) → too cold → new-only. The first block reason wins and is listed first in `Reasons`. Watchlist hits get `+1000` score and are exempt from the recurrence and temperature rules on purpose. A passing deal also records pass reasons (temperature, recurrence) after the watchlist reason. A new rule needs a place in that order, a human-readable reason string, and a table test in `rules_test.go`.
 - **Keywords match the raw lowercased title**, not the cleaned one (cleaning drops numbers like `5080`).
 - **Fingerprints:** changing `CleanTitle`/`Key` changes every stored fingerprint's meaning (recurrence counts and junk actions are keyed by it). Treat it as a migration: say so in the PR and decide what happens to existing rows. `Store.Rekey` runs at startup and re-keys deals and junk actions to the current rules.
+- **Recurrence counts only the same source:** `CountRecurrence` ignores deals from other sources (the same offer on two sites is not a repeat); Junk, Hide, the watchlist, mutes, keywords and category overrides apply across sources. A new Pepper site is a row in `pepper.sites`, a name in `settings.SourceNames` (plus a label if it differs), fixtures in `internal/source/pepper/testdata/` and a docs line.
 - **Recurrence only looks back:** `CountRecurrence` counts deals with the same fingerprint first seen *before* the deal (same-poll ties by id), inside the window ending at its own first sighting, so a recompute never turns an earlier pass into "recurring".
 - **Verdicts are recomputed** for the last 7 days after every action and after every settings change (and at startup). Recompute never notifies.
 - **Notifications:** at most one successful send per (deal, channel), up to 3 attempts, failed ones retried on later polls. Keep that bookkeeping in `notifications_sent`.

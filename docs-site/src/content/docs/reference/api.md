@@ -20,18 +20,18 @@ The web page talks to the backend only through this JSON API. Errors are returne
 | `POST /api/suggestions/apply` | Accept a suggestion. |
 | `POST /api/suggestions/dismiss` | Dismiss a suggestion for good. |
 | `GET /api/categories` | Categories seen in stored deals. |
-| `GET /api/status` | Per feed: last successful poll and last error. |
+| `GET /api/status` | Per source and feed: last successful poll and last error, plus the enabled `sources`. |
 | `GET /health` | Liveness for monitors. |
 
 ## `GET /api/deals`
 
-Returns up to 200 deals, sorted by score and then by first-seen time. Each deal carries its verdict, the reasons, the current temperature and the temperature history (used for the sparkline). An unknown `view` returns `400`.
+Returns up to 200 deals, sorted by score and then by first-seen time. Each deal carries its verdict, the reasons, the current temperature and the temperature history (used for the sparkline). Add `source=<name>` (`mydealz`, `hotukdeals`, `dealabs`, `preisjaeger`, `chollometro` or `pepperpl`) to list one source only; an unknown `view` or `source` returns `400`. Every deal carries `source` and `source_label`.
 
 The response also contains `counts` next to `deals`, with the number of deals per view (`passed`, `watchlist`, `blocked`) over the same window, whichever view you listed.
 
 ```json
 {
-  "deals": [ { "id": "mydealz:123456", "title": "...", "reasons": ["..."] } ],
+  "deals": [ { "id": "mydealz:123456", "source": "mydealz", "source_label": "mydealz", "title": "...", "reasons": ["..."] } ],
   "counts": { "passed": 12, "watchlist": 2, "blocked": 40 }
 }
 ```
@@ -64,6 +64,7 @@ Removes the action with that ID and recomputes verdicts. Answers `204`, or `404`
   "updated_at": "2026-11-04T10:15:00Z",
   "settings": {
     "watchlist": ["oled"],
+    "sources": { "mydealz": { "enabled": true }, "hotukdeals": { "enabled": true, "min_temperature": 150 } },
     "rules": {
       "min_temperature": 100,
       "category_overrides": { "Elektronik": 60 },
