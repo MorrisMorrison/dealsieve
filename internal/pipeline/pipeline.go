@@ -217,6 +217,9 @@ func (p *Pipeline) retryPending(ctx context.Context, now time.Time) map[string]b
 		return attempted
 	}
 	for _, pn := range pending {
+		if _, ok := p.Notifiers[pn.Channel]; !ok {
+			continue // removed in the settings; nothing to retry through
+		}
 		rec, err := p.Store.GetDeal(ctx, pn.DealID)
 		if err != nil {
 			continue

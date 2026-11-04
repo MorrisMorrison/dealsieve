@@ -301,3 +301,44 @@ func TestConcurrentFeedsSendOnce(t *testing.T) {
 		t.Errorf("sent %d, want 1", slow.count)
 	}
 }
+
+type recordingHandler struct {
+	mu      sync.Mutex
+	records []string
+}
+
+func (r *recordingHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (r *recordingHandler) Handle(_ context.Context, rec slog.Record) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.records = append(r.records, rec.Message)
+	return nil
+}
+func (r *recordingHandler) WithAttrs([]slog.Attr) slog.Handler { return r }
+func (r *recordingHandler) WithGroup(string) slog.Handler      { return r }
+
+// A channel the user removed in the settings must not keep failing in the log.
+func TestPendingNotificationForRemovedChannelIsSkipped(t *testing.T) {
+	h := newHarness(t, settings.When{Watchlist: true})
+	old := &fakeNotifier{fail: true}
+	h.p.Notify = []settings.NotifyRule{{When: settings.When{Watchlist: true}, Channels: []string{"old"}}}
+	h.p.Notifiers = map[string]notify.Notifier{"old": old}
+	d := deal("1", "Example OLED TV", intp(150))
+	h.ingest(t, source.FeedTrending, d)
+	if _, attempts, _ := h.st.NotificationState(ctx, "mydealz:1", "old"); attempts != 1 {
+		t.Fatalf("attempts = %d, want 1", attempts)
+	}
+
+	logs := &recordingHandler{}
+	h.p.Log = slog.New(logs)
+	s := settings.Defaults()
+	s.Watchlist = []string{"oled"}
+	h.p.ApplySettings(s)
+	h.ingest(t, source.FeedTrending, d)
+	if _, attempts, _ := h.st.NotificationState(ctx, "mydealz:1", "old"); attempts != 1 {
+		t.Errorf("attempts after removal = %d, want 1", attempts)
+	}
+	if len(logs.records) != 0 {
+		t.Errorf("logged %q, want nothing for a removed channel", logs.records)
+	}
+}
