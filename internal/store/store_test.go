@@ -305,6 +305,90 @@ func TestActions(t *testing.T) {
 	}
 }
 
+func TestAddActionIsIdempotent(t *testing.T) {
+	s := openTest(t)
+	a1, err := s.AddAction(ctx, ActionJunk, "shop|a", t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a2, err := s.AddAction(ctx, ActionJunk, "shop|a", t0.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a2.ID != a1.ID || !a2.CreatedAt.Equal(t0) {
+		t.Errorf("repeat = %+v, want the first action %+v", a2, a1)
+	}
+	// Same value under another kind is a different click.
+	if _, err := s.AddAction(ctx, ActionHide, "shop|a", t0); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := s.Actions(ctx); len(list) != 2 {
+		t.Errorf("actions = %+v, want 2", list)
+	}
+	if ok, err := s.DeleteAction(ctx, a1.ID); !ok || err != nil {
+		t.Fatalf("delete = %v, %v", ok, err)
+	}
+	if list, _ := s.Actions(ctx); len(list) != 1 || list[0].Kind != ActionHide {
+		t.Errorf("after undo = %+v", list)
+	}
+}
+
+func TestMigrationDedupesActions(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "d.db")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Go back to the schema before migration 006: no unique index, duplicates allowed.
+	if _, err := s.db.Exec(`DROP INDEX actions_kind_value`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec(`PRAGMA user_version = 5`); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []struct {
+		kind, value string
+		at          int64
+	}{
+		{ActionJunk, "fp", 10}, {ActionJunk, "fp", 20}, {ActionHide, "fp", 30},
+		{ActionHide, "mydealz:1", 40}, {ActionHide, "mydealz:1", 50}, {ActionHide, "mydealz:1", 60},
+	} {
+		if _, err := s.db.Exec(`INSERT INTO actions (kind, value, created_at) VALUES (?, ?, ?)`, r.kind, r.value, r.at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s.Close()
+	s, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	list, _ := s.Actions(ctx)
+	got := map[string]int64{}
+	for _, a := range list {
+		got[a.Kind+"/"+a.Value] = a.CreatedAt.Unix()
+	}
+	want := map[string]int64{"junk/fp": 10, "hide_deal/fp": 30, "hide_deal/mydealz:1": 40}
+	if len(list) != 3 || !maps.Equal(got, want) {
+		t.Errorf("actions after migration = %+v, want the oldest of each", list)
+	}
+}
+
+func TestRekeyKeepsActionsUnique(t *testing.T) {
+	s := openTest(t)
+	// Two junk clicks whose fingerprints both re-key to the same new one.
+	mustUpsert(t, s, deal("1", nil), source.FeedTrending, "old-a", t0)
+	mustUpsert(t, s, deal("2", nil), source.FeedTrending, "old-b", t0)
+	s.AddAction(ctx, ActionJunk, "old-a", t0.Add(time.Minute))
+	s.AddAction(ctx, ActionJunk, "old-b", t0.Add(time.Minute))
+	if _, err := s.Rekey(ctx, func(m, title string) (string, string) { return title, "same" }, func(string) string { return "same" }); err != nil {
+		t.Fatalf("rekey: %v", err)
+	}
+	if list, _ := s.Actions(ctx); len(list) != 1 || list[0].Value != "same" {
+		t.Errorf("actions = %+v, want one junk on the shared key", list)
+	}
+}
+
 func TestNotifications(t *testing.T) {
 	s := openTest(t)
 	mustUpsert(t, s, deal("1", nil), source.FeedTrending, "a", t0)

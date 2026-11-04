@@ -519,3 +519,27 @@ func TestListDealsPriceHistory(t *testing.T) {
 		t.Errorf("price_history should be omitted when empty: %s", body)
 	}
 }
+
+func TestRepeatClickIsAccepted(t *testing.T) {
+	h := newHarness(t)
+	var first, second store.Action
+	for i, dst := range []*store.Action{&first, &second} {
+		resp, body := h.do(t, "POST", "/api/actions", `{"kind":"hide_deal","deal_id":"mydealz:a"}`)
+		if resp.StatusCode != 201 {
+			t.Fatalf("click %d status = %d: %s", i+1, resp.StatusCode, body)
+		}
+		json.Unmarshal(body, dst)
+	}
+	if first.ID == 0 || second.ID != first.ID {
+		t.Errorf("ids = %d, %d, want the same action", first.ID, second.ID)
+	}
+	if actions, _ := h.st.Actions(context.Background()); len(actions) != 1 {
+		t.Errorf("actions = %+v, want one", actions)
+	}
+	if resp, _ := h.do(t, "POST", "/api/actions/undo", `{"kind":"hide_deal","deal_id":"mydealz:a"}`); resp.StatusCode != http.StatusNoContent {
+		t.Errorf("undo = %d", resp.StatusCode)
+	}
+	if actions, _ := h.st.Actions(context.Background()); len(actions) != 0 {
+		t.Errorf("actions after undo = %+v", actions)
+	}
+}

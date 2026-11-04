@@ -27,13 +27,20 @@ type Action struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// AddAction stores a click. The same (kind, value) is stored once: a repeat
+// returns the existing action unchanged.
 func (s *Store) AddAction(ctx context.Context, kind, value string, now time.Time) (Action, error) {
-	res, err := s.db.ExecContext(ctx, `INSERT INTO actions (kind, value, created_at) VALUES (?, ?, ?)`, kind, value, now.Unix())
-	if err != nil {
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO actions (kind, value, created_at) VALUES (?, ?, ?)
+		ON CONFLICT (kind, value) DO NOTHING`, kind, value, now.Unix()); err != nil {
 		return Action{}, err
 	}
-	id, err := res.LastInsertId()
-	return Action{ID: id, Kind: kind, Value: value, CreatedAt: fromUnix(now.Unix())}, err
+	a := Action{Kind: kind, Value: value}
+	var created int64
+	if err := s.db.QueryRowContext(ctx, `SELECT id, created_at FROM actions WHERE kind = ? AND value = ?`, kind, value).Scan(&a.ID, &created); err != nil {
+		return Action{}, err
+	}
+	a.CreatedAt = fromUnix(created)
+	return a, nil
 }
 
 func (s *Store) DeleteAction(ctx context.Context, id int64) (bool, error) {

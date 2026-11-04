@@ -49,7 +49,7 @@ Body:
 
 `kind` is one of `hide_deal`, `junk`, `mute_category` or `mute_merchant`. The server derives the value from the deal (the deal ID, its fingerprint, its category or its merchant), so clients cannot inject arbitrary values.
 
-`hide_deal` and `junk` are stored as actions and answer `201` with the action. `mute_category` and `mute_merchant` instead add the deal's category or shop to the settings (a new settings version with the summary `Added muted shop "X" (from a deal)` or `Added muted category "X" (from a deal)`) and answer `201` with `{kind, value, version}`, plus a `warning` if re-checking recent deals failed.
+`hide_deal` and `junk` are stored as actions and answer `201` with the action; clicking the same Hide or Junk again is not stored twice and answers `201` with the existing action. `mute_category` and `mute_merchant` instead add the deal's category or shop to the settings (a new settings version with the summary `Added muted shop "X" (from a deal)` or `Added muted category "X" (from a deal)`) and answer `201` with `{kind, value, version}`, plus a `warning` if re-checking recent deals failed.
 
 ## `POST /api/actions/undo`
 
