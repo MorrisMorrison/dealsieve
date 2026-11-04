@@ -21,7 +21,7 @@ export const getStatus = () => request('GET', '/api/status').then((r) => r.feeds
 
 export const getSettings = () => request('GET', '/api/settings');
 export const putSettings = (version, settings) => request('PUT', '/api/settings', { version, settings });
-export const undoSettings = () => request('POST', '/api/settings/undo', {});
+export const undoSettings = (version) => request('POST', '/api/settings/undo', { version });
 export const getHistory = () => request('GET', '/api/settings/history').then((r) => r.history);
 export const testChannel = (channel) => request('POST', '/api/settings/test', { channel });
 export const getSuggestions = () => request('GET', '/api/suggestions').then((r) => r.suggestions);

@@ -106,10 +106,15 @@ func (s *Service) Save(ctx context.Context, version int64, next settings.Setting
 	return s.commit(ctx, next, settings.Summarize(cur.Settings, next))
 }
 
-// Undo saves the version before the current one as a new version.
-func (s *Service) Undo(ctx context.Context) (Result, error) {
+// Undo saves the version before the current one as a new version. version is
+// the one the caller is looking at; if the settings moved on, it is a
+// conflict. Undoing twice therefore re-applies the undone change.
+func (s *Service) Undo(ctx context.Context, version int64) (Result, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if version != s.Current().Version {
+		return Result{}, ErrConflict
+	}
 	prev, err := s.Store.SettingsBefore(ctx, s.Current().Version)
 	if errors.Is(err, store.ErrNotFound) {
 		return Result{}, ErrNothingToUndo

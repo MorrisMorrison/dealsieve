@@ -58,7 +58,14 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) undoSettings(w http.ResponseWriter, r *http.Request) {
-	res, err := s.Settings.Undo(r.Context())
+	var req struct {
+		Version int64 `json:"version"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	res, err := s.Settings.Undo(r.Context(), req.Version)
 	s.respondSave(w, res, err)
 }
 

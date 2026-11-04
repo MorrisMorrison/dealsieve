@@ -96,7 +96,7 @@ func TestSave(t *testing.T) {
 
 func TestUndo(t *testing.T) {
 	svc, _, _, _ := newService(t)
-	if _, err := svc.Undo(ctx); !errors.Is(err, ErrNothingToUndo) {
+	if _, err := svc.Undo(ctx, svc.Current().Version); !errors.Is(err, ErrNothingToUndo) {
 		t.Fatalf("undo with one version: %v", err)
 	}
 	next := svc.Current().Settings
@@ -104,7 +104,10 @@ func TestUndo(t *testing.T) {
 	if _, err := svc.Save(ctx, svc.Current().Version, next); err != nil {
 		t.Fatal(err)
 	}
-	res, err := svc.Undo(ctx)
+	if _, err := svc.Undo(ctx, svc.Current().Version-1); !errors.Is(err, ErrConflict) {
+		t.Fatalf("undo with a stale version: %v, want ErrConflict", err)
+	}
+	res, err := svc.Undo(ctx, svc.Current().Version)
 	if err != nil || res.Settings.Rules.MinTemperature != 100 || !res.Changed {
 		t.Fatalf("undo = %+v, %v", res, err)
 	}

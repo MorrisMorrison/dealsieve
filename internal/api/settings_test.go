@@ -79,15 +79,22 @@ func TestCrossOriginSettingsPutIsRejected(t *testing.T) {
 
 func TestUndoAndHistory(t *testing.T) {
 	h := newHarness(t)
-	if resp, _ := h.do(t, "POST", "/api/settings/undo", ""); resp.StatusCode != http.StatusConflict {
+	undo := func() string { return fmt.Sprintf(`{"version":%d}`, h.svc.Current().Version) }
+	if resp, _ := h.do(t, "POST", "/api/settings/undo", undo()); resp.StatusCode != http.StatusConflict {
 		t.Errorf("undo with nothing to undo = %d", resp.StatusCode)
+	}
+	if resp, _ := h.do(t, "POST", "/api/settings/undo", ""); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("undo without a version = %d, want 400", resp.StatusCode)
 	}
 	h.do(t, "POST", "/api/actions", `{"kind":"mute_category","deal_id":"mydealz:a"}`)
 	resp, body := h.do(t, "GET", "/api/settings/history", "")
 	if resp.StatusCode != 200 || !strings.Contains(string(body), `Added muted category \"Elektronik\" (from a deal)`) {
 		t.Errorf("history %d: %s", resp.StatusCode, body)
 	}
-	if resp, body := h.do(t, "POST", "/api/settings/undo", ""); resp.StatusCode != 200 || !strings.Contains(string(body), `"muted_categories":[]`) {
+	if resp, _ := h.do(t, "POST", "/api/settings/undo", `{"version":1}`); resp.StatusCode != http.StatusConflict {
+		t.Errorf("undo with a stale version = %d, want 409", resp.StatusCode)
+	}
+	if resp, body := h.do(t, "POST", "/api/settings/undo", undo()); resp.StatusCode != 200 || !strings.Contains(string(body), `"muted_categories":[]`) {
 		t.Errorf("undo %d: %s", resp.StatusCode, body)
 	}
 }
@@ -164,7 +171,7 @@ func TestRecheckFailureAfterSaveIsAWarning(t *testing.T) {
 	if resp.StatusCode != http.StatusCreated || !strings.Contains(string(body), `re-checking recent deals failed`) {
 		t.Errorf("mute merchant %d: %s", resp.StatusCode, body)
 	}
-	resp, body = h.do(t, "POST", "/api/settings/undo", "")
+	resp, body = h.do(t, "POST", "/api/settings/undo", fmt.Sprintf(`{"version":%d}`, h.svc.Current().Version))
 	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `"changed":true`) ||
 		!strings.Contains(string(body), "they'll be re-checked on the next poll") {
 		t.Errorf("undo %d: %s", resp.StatusCode, body)

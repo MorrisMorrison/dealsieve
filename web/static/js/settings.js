@@ -511,7 +511,7 @@ async function onDismiss(s, applyBtn, dismissBtn) {
 async function onUndo() {
   if (changeCount(st.saved, st.draft) > 0 && !confirm('Undoing discards your unsaved changes. Continue?')) return;
   try {
-    await undoSettings();
+    await undoSettings(st.version);
     await reload();
     renderAll();
     toast('Undone');
