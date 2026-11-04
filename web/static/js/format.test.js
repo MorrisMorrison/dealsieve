@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ago, age, clock, heat, money, monthYear, ratingMark, sentence } from './format.js';
+import { ago, age, clickKind, clock, heat, money, monthYear, ratingMark, sentence } from './format.js';
 
 const now = Date.parse('2026-11-03T12:00:00Z');
 
@@ -56,4 +56,10 @@ test('money', () => {
 test('monthYear', () => {
   assert.equal(monthYear('2026-08-14T09:12:00Z', 'en-GB'), 'Aug 2026');
   assert.equal(monthYear('', 'en-GB'), '');
+});
+
+test('clickKind', () => {
+  assert.equal(clickKind('hide_deal'), 'Hidden');
+  assert.equal(clickKind('junk'), 'Marked as junk');
+  assert.equal(clickKind('other'), 'other');
 });

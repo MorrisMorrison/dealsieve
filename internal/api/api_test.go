@@ -543,3 +543,45 @@ func TestRepeatClickIsAccepted(t *testing.T) {
 		t.Errorf("actions after undo = %+v", actions)
 	}
 }
+
+func TestListAndUndoClicks(t *testing.T) {
+	h := newHarness(t)
+	var empty struct {
+		Actions []store.Click `json:"actions"`
+	}
+	_, body := h.do(t, "GET", "/api/actions", "")
+	if json.Unmarshal(body, &empty); empty.Actions == nil || len(empty.Actions) != 0 || !strings.Contains(string(body), `"actions":[]`) {
+		t.Errorf("empty list = %s, want an empty array", body)
+	}
+
+	h.do(t, "POST", "/api/actions", `{"kind":"hide_deal","deal_id":"mydealz:a"}`)
+	h.do(t, "POST", "/api/actions", `{"kind":"junk","deal_id":"mydealz:b"}`)
+	h.do(t, "POST", "/api/actions", `{"kind":"mute_category","deal_id":"mydealz:a"}`) // a setting, not a click
+	resp, body := h.do(t, "GET", "/api/actions", "")
+	if resp.StatusCode != 200 {
+		t.Fatalf("status %d: %s", resp.StatusCode, body)
+	}
+	var got struct {
+		Actions []store.Click `json:"actions"`
+	}
+	json.Unmarshal(body, &got)
+	if len(got.Actions) != 2 || got.Actions[0].Kind != store.ActionJunk || got.Actions[0].Label != "Example Kabel" ||
+		got.Actions[1].Kind != store.ActionHide || got.Actions[1].Label != "Example OLED TV" ||
+		got.Actions[1].URL != "https://www.mydealz.de/deals/x-a" || got.Actions[1].CreatedAt.IsZero() {
+		t.Fatalf("actions = %+v", got.Actions)
+	}
+
+	calls := h.rc.calls
+	if resp, _ := h.do(t, "DELETE", "/api/actions/"+jsonID(got.Actions[0].ID), ""); resp.StatusCode != 204 {
+		t.Errorf("delete status = %d", resp.StatusCode)
+	}
+	if h.rc.calls != calls+1 {
+		t.Errorf("recompute calls = %d, want %d", h.rc.calls, calls+1)
+	}
+	_, body = h.do(t, "GET", "/api/actions", "")
+	got.Actions = nil
+	json.Unmarshal(body, &got)
+	if len(got.Actions) != 1 || got.Actions[0].Kind != store.ActionHide {
+		t.Errorf("after undo = %+v", got.Actions)
+	}
+}

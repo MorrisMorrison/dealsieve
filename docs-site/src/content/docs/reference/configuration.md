@@ -106,6 +106,10 @@ An optional model opinion on deals that passed; see [LLM judge](/dealsieve/guide
 
 List entries are trimmed, must not be empty and are de-duplicated case-insensitively; de-duplication is a normalisation on save, not an error.
 
+### Your clicks
+
+Lists your latest Hide and Junk clicks (up to 200, newest first) with the deal's title, linked to the post while the deal is still stored, and how long ago you clicked. **Undo** takes a single click back and re-checks the last 7 days of deals. Mutes are not listed here: they are settings, undone from their list or from [History and undo](#history-and-undo).
+
 ### History and undo
 
 Every save is stored as a version with a summary of what changed (for example `Added watchlist entry "lego"`, `Added muted shop "Example Shop" (from a deal)` or `Minimum temperature 120° → 100°`). A save with no differences is not stored. The History section lists the last 20 versions, and **Undo last change** saves the version before the current one again as a new one, so undoing twice re-applies the change you just undid. If another browser tab saved in the meantime, a save or an undo fails with a conflict and the page offers to reload.

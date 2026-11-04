@@ -65,6 +65,14 @@ body.settings-page .history li { display: flex; justify-content: space-between; 
 body.settings-page .history li:first-child { border-top: 0; }
 body.settings-page .history .when { color: var(--faint); white-space: nowrap; }
 
+body.settings-page .clicks { list-style: none; margin: 0; padding: 0; display: grid; }
+body.settings-page .clicks li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; }
+body.settings-page .clicks li:first-child { border-top: 0; }
+body.settings-page .clicks .what { flex: 1; min-width: 0; overflow-wrap: anywhere; display: flex; flex-direction: column; gap: 2px; }
+body.settings-page .clicks .kind { color: var(--muted); font-size: 12px; }
+body.settings-page .clicks a { color: inherit; }
+body.settings-page .clicks .when { color: var(--faint); white-space: nowrap; }
+
 body.settings-page .savebar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%) translateY(140%); transition: transform .2s ease; z-index: 20; display: flex; gap: 12px; align-items: center; padding: 10px 12px 10px 16px; border-radius: 12px; background: var(--text); color: var(--bg); box-shadow: 0 8px 24px rgba(0,0,0,.2); width: min(560px, calc(100% - 32px)); }
 body.settings-page .savebar.show { transform: translateX(-50%) translateY(0); }
 body.settings-page .savebar .grow { flex: 1; }

@@ -8,6 +8,7 @@ The web page talks to the backend only through this JSON API. Errors are returne
 | Method and path | Purpose |
 |---|---|
 | `GET /api/deals?view=passed\|watchlist\|blocked` | Deals seen in the last 3 days for one view (default `passed`). |
+| `GET /api/actions` | Your latest Hide and Junk clicks, newest first, each with a label. |
 | `POST /api/actions` | Hide or junk a deal, or mute its shop or category. |
 | `POST /api/actions/undo` | Undo a Hide or a Junk. |
 | `DELETE /api/actions/{id}` | Remove an action by ID and recompute verdicts. |
@@ -38,6 +39,19 @@ A deal can also carry `price_history` (left out when there is none): `status` (`
   "counts": { "passed": 12, "watchlist": 2, "blocked": 40 }
 }
 ```
+
+## `GET /api/actions`
+
+The newest 200 Hide and Junk clicks (mutes are settings, not actions), newest first:
+
+```json
+{ "actions": [
+  { "id": 12, "kind": "junk", "created_at": "2026-11-04T10:15:00Z",
+    "label": "Example Air flights from 19.99", "url": "https://www.mydealz.de/deals/x-123456" }
+] }
+```
+
+`label` is the title of the deal (for a Junk, the most recent deal with that fingerprint) and `url` its link. When no such deal is stored any more, `url` is omitted and `label` falls back to the fingerprint's words (Junk) or a note that the deal is gone (Hide). Remove a click with `DELETE /api/actions/{id}`.
 
 ## `POST /api/actions`
 

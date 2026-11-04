@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
@@ -68,6 +69,105 @@ func (s *Store) Actions(ctx context.Context) ([]Action, error) {
 		}
 		a.CreatedAt = fromUnix(created)
 		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// Click is a Hide or Junk action with a label a person can recognise.
+type Click struct {
+	ID        int64     `json:"id"`
+	Kind      string    `json:"kind"`
+	CreatedAt time.Time `json:"created_at"`
+	Label     string    `json:"label"`
+	URL       string    `json:"url,omitempty"`
+}
+
+// Clicks returns the newest Hide and Junk clicks (at most limit), each labelled
+// with its deal's title and link. The deals come from two queries, not one per
+// click. A Hide whose deal was pruned says so; a Junk with no deal left shows
+// its fingerprint's words.
+func (s *Store) Clicks(ctx context.Context, limit int) ([]Click, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, kind, value, created_at FROM actions
+		WHERE kind IN (?, ?) ORDER BY created_at DESC, id DESC LIMIT ?`, ActionHide, ActionJunk, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var clicks []Click
+	var values []string
+	var hideIDs, fingerprints []string
+	for rows.Next() {
+		var c Click
+		var value string
+		var created int64
+		if err := rows.Scan(&c.ID, &c.Kind, &value, &created); err != nil {
+			return nil, err
+		}
+		c.CreatedAt = fromUnix(created)
+		clicks = append(clicks, c)
+		values = append(values, value)
+		if c.Kind == ActionHide {
+			hideIDs = append(hideIDs, value)
+		} else {
+			fingerprints = append(fingerprints, value)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	byID, err := s.dealsBy(ctx, "id", hideIDs)
+	if err != nil {
+		return nil, err
+	}
+	byFingerprint, err := s.dealsBy(ctx, "fingerprint", fingerprints)
+	if err != nil {
+		return nil, err
+	}
+	for i := range clicks {
+		c := &clicks[i]
+		if c.Kind == ActionHide {
+			if d, ok := byID[values[i]]; ok {
+				c.Label, c.URL = d.Title, d.URL
+			} else {
+				c.Label = "A deal that is no longer stored"
+			}
+			continue
+		}
+		if d, ok := byFingerprint[values[i]]; ok {
+			c.Label, c.URL = d.Title, d.URL
+		} else {
+			_, words, _ := strings.Cut(values[i], "|")
+			c.Label = words
+		}
+	}
+	return clicks, nil
+}
+
+// dealsBy maps each value of column (id or fingerprint) to its most recently
+// first-seen deal.
+func (s *Store) dealsBy(ctx context.Context, column string, values []string) (map[string]struct{ Title, URL string }, error) {
+	out := map[string]struct{ Title, URL string }{}
+	if len(values) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(values))
+	for i, v := range values {
+		args[i] = v
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT `+column+`, title, url FROM deals WHERE `+column+` IN (?`+strings.Repeat(", ?", len(values)-1)+`)
+		ORDER BY first_seen DESC, id DESC`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var key, title, url string
+		if err := rows.Scan(&key, &title, &url); err != nil {
+			return nil, err
+		}
+		if _, seen := out[key]; !seen {
+			out[key] = struct{ Title, URL string }{title, url}
+		}
 	}
 	return out, rows.Err()
 }
