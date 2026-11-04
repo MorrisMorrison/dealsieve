@@ -57,6 +57,14 @@ stay in environment variables. Notification rules send watchlist hits, or deals 
 [ntfy](https://ntfy.sh) and/or Telegram. An optional daily digest (off by default) sends one message a day
 with your watchlist hits and the top new deals; it has its own block on the Settings page.
 
+## LLM judge (optional)
+
+Off by default. When enabled on the Settings page, a language model gives each deal that passed
+your rules a one-line opinion (good, meh or bad) shown in the list, the detail panel and the
+daily digest. It only annotates: it never blocks, unblocks or notifies, and it has a daily call
+limit. It works with OpenRouter or any OpenAI-compatible server, including a local one. Only the
+title, price, shop, category, temperature and your notes are sent.
+
 ## Run it
 
 ```bash
@@ -91,6 +99,8 @@ are snapshots on the way to a stable 1.0, not long-term-supported versions.
 | `DEALSIEVE_NTFY_TOKEN` | | Access token for a protected ntfy server |
 | `DEALSIEVE_MYDEALZ_URL` | `https://www.mydealz.de` | Feed host (for tests) |
 | `DEALSIEVE_PUBLIC_URL` | unset | The address you open dealsieve at, e.g. `https://deals.example.com`. The daily digest links to it. |
+| `DEALSIEVE_JUDGE_URL` | `https://openrouter.ai/api/v1` | Base URL of an OpenAI-compatible chat-completions API for the LLM judge (requests go to `<url>/chat/completions`) |
+| `DEALSIEVE_JUDGE_API_KEY` | | Optional bearer key for the judge's server; never stored, logged or returned |
 
 Environment variables are for infrastructure and secrets and apply on restart; invalid values are
 rejected at startup with a list of problems. Everything else (watchlist, mutes, keywords,

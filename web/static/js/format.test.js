@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ago, age, clock, heat, sentence } from './format.js';
+import { ago, age, clock, heat, ratingMark, sentence } from './format.js';
 
 const now = Date.parse('2026-11-03T12:00:00Z');
 
@@ -36,4 +36,13 @@ test('heat buckets temperatures', () => {
 test('sentence capitalises the first letter only', () => {
   assert.equal(sentence('hot: 637° (minimum 100°)'), 'Hot: 637° (minimum 100°)');
   assert.equal(sentence(''), '');
+});
+
+test('ratingMark', () => {
+  assert.deepEqual(ratingMark('good'), { symbol: '✓', label: 'good', className: 'good' });
+  assert.deepEqual(ratingMark('meh'), { symbol: '~', label: 'meh', className: 'meh' });
+  assert.deepEqual(ratingMark('bad'), { symbol: '!', label: 'bad', className: 'bad' });
+  assert.equal(ratingMark('great'), null);
+  assert.equal(ratingMark('toString'), null);
+  assert.equal(ratingMark(undefined), null);
 });

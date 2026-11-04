@@ -10,7 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MorrisMorrison/dealsieve/internal/config"
 	"github.com/MorrisMorrison/dealsieve/internal/digest"
+	"github.com/MorrisMorrison/dealsieve/internal/judge"
 	"github.com/MorrisMorrison/dealsieve/internal/settings"
 )
 
@@ -215,5 +217,53 @@ func TestTestDigest(t *testing.T) {
 	if resp.StatusCode != 200 || fd.calls != 1 ||
 		!strings.Contains(string(body), `{"channel":"phone","ok":true}`) || !strings.Contains(string(body), `"error":"telegram sendMessage: status 400"`) {
 		t.Errorf("test digest %d: %s", resp.StatusCode, body)
+	}
+}
+
+func TestTestJudge(t *testing.T) {
+	h := newHarness(t)
+	fake := &fakeJudgeRunner{result: judge.TestResult{OK: true, Rating: judge.Bad, Reason: "Plain re-post."}}
+	h.api.Judge = fake
+	resp, body := h.do(t, "POST", "/api/settings/judge/test", `{"judge":{"model":"","daily_limit":200}}`)
+	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(string(body), "judge.model") {
+		t.Errorf("invalid judge = %d: %s", resp.StatusCode, body)
+	}
+	resp, body = h.do(t, "POST", "/api/settings/judge/test", `{"judge":{"enabled":true,"model":" example/model ","daily_limit":200,"instructions":"be strict"}}`)
+	if resp.StatusCode != 200 || !strings.Contains(string(body), `"ok":true`) || !strings.Contains(string(body), `"rating":"bad"`) {
+		t.Errorf("valid judge = %d: %s", resp.StatusCode, body)
+	}
+	if fake.got.Model != "example/model" || fake.got.Instructions != "be strict" {
+		t.Errorf("runner saw %+v", fake.got)
+	}
+}
+
+func TestTestJudgeWithoutRunner(t *testing.T) {
+	h := newHarness(t)
+	resp, body := h.do(t, "POST", "/api/settings/judge/test", `{"judge":{"model":"example/model","daily_limit":200}}`)
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("status = %d: %s", resp.StatusCode, body)
+	}
+}
+
+func TestJudgeKeyNeverInResponses(t *testing.T) {
+	h := newHarness(t)
+	h.api.Env = config.Env{JudgeURL: "https://llm.example.test/v1", JudgeAPIKey: "sk-test-secret"}
+	h.api.Judge = &fakeJudgeRunner{result: judge.TestResult{OK: false, Error: "HTTP 401"}}
+	_, get := h.do(t, "GET", "/api/settings", "")
+	var parsed struct {
+		JudgeEnv map[string]any `json:"judge_env"`
+	}
+	if err := json.Unmarshal(get, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if parsed.JudgeEnv["key_set"] != true || parsed.JudgeEnv["url"] != "https://llm.example.test/v1" {
+		t.Errorf("judge_env = %v", parsed.JudgeEnv)
+	}
+	_, status := h.do(t, "GET", "/api/status", "")
+	_, test := h.do(t, "POST", "/api/settings/judge/test", `{"judge":{"model":"example/model","daily_limit":200}}`)
+	for name, b := range map[string][]byte{"settings": get, "status": status, "test": test} {
+		if strings.Contains(string(b), "sk-test-secret") {
+			t.Errorf("%s leaks the key: %s", name, b)
+		}
 	}
 }

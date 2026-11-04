@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/MorrisMorrison/dealsieve/internal/notify"
 	"github.com/MorrisMorrison/dealsieve/internal/settings"
@@ -22,6 +23,7 @@ func (s *Server) settingsBody(snap settingsvc.Snapshot) map[string]any {
 		"updated_at": snap.UpdatedAt,
 		"settings":   snap.Settings,
 		"warnings":   settings.Warnings(snap.Settings, s.Env.TelegramToken != ""),
+		"judge_env":  map[string]any{"url": s.Env.JudgeURL, "key_set": s.Env.JudgeAPIKey != ""},
 	}
 }
 
@@ -210,4 +212,27 @@ func (s *Server) testDigest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"results": s.Digest.SendTest(r.Context())})
+}
+
+// testJudge asks the model for an opinion on a sample deal using the judge
+// settings as given in the form, before they are saved.
+func (s *Server) testJudge(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Judge settings.Judge `json:"judge"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	j := req.Judge
+	j.Model, j.Instructions = strings.TrimSpace(j.Model), strings.TrimSpace(j.Instructions)
+	if errs := settings.ValidateJudge(j, true); len(errs) > 0 {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"errors": errs})
+		return
+	}
+	if s.Judge == nil {
+		writeError(w, http.StatusServiceUnavailable, "judge isn't available")
+		return
+	}
+	writeJSON(w, http.StatusOK, s.Judge.Test(r.Context(), j))
 }

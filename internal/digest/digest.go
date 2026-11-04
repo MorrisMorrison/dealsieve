@@ -24,6 +24,8 @@ type Item struct {
 	URL         string
 	Price       string
 	Temperature *int
+	// Opinion is the judge's "<rating>: <reason>", or empty when there is none.
+	Opinion string
 }
 
 // Due reports whether a channel's digest should go out at now: the local
@@ -43,8 +45,9 @@ func Due(now time.Time, d settings.Digest, last time.Time, hasLast bool) bool {
 	return !hasLast || last.Before(sendAt)
 }
 
-// Compose builds one digest message. Lines from the end of the top list are
-// dropped (and counted in "… and K more") until both versions fit MaxBytes.
+// Compose builds one digest message. Each deal's judge opinion, if any, goes on
+// its own line under the deal. Lines from the end of the top list are dropped
+// (and counted in "… and K more") until both versions fit MaxBytes.
 func Compose(hits, top []Item, publicURL string) notify.Message {
 	total := len(hits) + len(top)
 	title := fmt.Sprintf("dealsieve · %d new deal", total)
@@ -108,7 +111,11 @@ func line(prefix string, it Item, asHTML bool) string {
 	if it.Temperature != nil {
 		parts = append(parts, fmt.Sprintf("%d°", *it.Temperature))
 	}
-	return strings.Join(parts, " · ")
+	out := strings.Join(parts, " · ")
+	if it.Opinion != "" {
+		out += "\n   ↳ " + maybeEscape(it.Opinion, asHTML)
+	}
+	return out
 }
 
 func maybeEscape(s string, asHTML bool) string {

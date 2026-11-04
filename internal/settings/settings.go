@@ -1,5 +1,5 @@
 // Package settings is the user-editable configuration: watchlist, filters,
-// recurrence, notifications and suggestion thresholds, stored as one JSON
+// recurrence, notifications, the digest, the LLM judge and suggestion thresholds, stored as one JSON
 // document. Infrastructure and secrets stay in environment variables.
 package settings
 
@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 	_ "time/tzdata" // the distroless image has no zoneinfo; the digest needs time zones
+	"unicode"
+	"unicode/utf8"
 )
 
 // MaxWindowDays matches how long deals are kept: a longer window would
@@ -28,7 +30,23 @@ type Settings struct {
 	Notify      []NotifyRule       `json:"notify"`
 	Suggestions Suggestions        `json:"suggestions"`
 	Digest      Digest             `json:"digest"`
+	Judge       Judge              `json:"judge"`
 }
+
+// Judge is the optional LLM opinion on passed deals. The endpoint and the key
+// are environment variables, so the key can't be sent elsewhere from the page.
+type Judge struct {
+	Enabled      bool   `json:"enabled"`
+	Model        string `json:"model"`
+	DailyLimit   int    `json:"daily_limit"`
+	Instructions string `json:"instructions"`
+}
+
+const (
+	MaxJudgeDailyLimit   = 5000
+	MaxJudgeInstructions = 500
+	maxJudgeModel        = 200
+)
 
 // Digest is the daily summary: at Time in Timezone, each channel gets the
 // watchlist hits and the Top other passed deals that are new since its
@@ -151,6 +169,7 @@ func Defaults() Settings {
 		Notify:      []NotifyRule{},
 		Suggestions: Suggestions{MinCount: 3, WindowDays: 30},
 		Digest:      Digest{Time: "18:00", Timezone: "Europe/Berlin", Top: 10, Channels: []string{}},
+		Judge:       Judge{DailyLimit: 200},
 	}
 }
 
@@ -200,6 +219,8 @@ func (s Settings) Normalize() Settings {
 	out.Digest.Time = strings.TrimSpace(s.Digest.Time)
 	out.Digest.Timezone = strings.TrimSpace(s.Digest.Timezone)
 	out.Digest.Channels = cleanList(s.Digest.Channels)
+	out.Judge.Model = strings.TrimSpace(s.Judge.Model)
+	out.Judge.Instructions = strings.TrimSpace(s.Judge.Instructions)
 	return out
 }
 
@@ -286,6 +307,30 @@ func (s Settings) Validate() map[string]string {
 		if _, ok := s.Channels[c]; !ok {
 			errs[fmt.Sprintf("digest.channels[%d]", i)] = fmt.Sprintf("unknown channel %q", c)
 		}
+	}
+	for k, v := range ValidateJudge(s.Judge, s.Judge.Enabled) {
+		errs[k] = v
+	}
+	return errs
+}
+
+// ValidateJudge checks the judge block; the test endpoint requires a model
+// even while the judge is off.
+func ValidateJudge(j Judge, requireModel bool) map[string]string {
+	errs := map[string]string{}
+	switch {
+	case j.Model == "" && requireModel:
+		errs["judge.model"] = "is required"
+	case strings.ContainsFunc(j.Model, unicode.IsSpace):
+		errs["judge.model"] = "can't contain spaces"
+	case utf8.RuneCountInString(j.Model) > maxJudgeModel:
+		errs["judge.model"] = fmt.Sprintf("must be at most %d characters", maxJudgeModel)
+	}
+	if j.DailyLimit < 1 || j.DailyLimit > MaxJudgeDailyLimit {
+		errs["judge.daily_limit"] = fmt.Sprintf("must be between 1 and %d", MaxJudgeDailyLimit)
+	}
+	if utf8.RuneCountInString(j.Instructions) > MaxJudgeInstructions {
+		errs["judge.instructions"] = fmt.Sprintf("must be at most %d characters", MaxJudgeInstructions)
 	}
 	return errs
 }

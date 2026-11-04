@@ -25,6 +25,7 @@ export const undoSettings = (version) => request('POST', '/api/settings/undo', {
 export const getHistory = () => request('GET', '/api/settings/history').then((r) => r.history);
 export const testChannel = (channel) => request('POST', '/api/settings/test', { channel });
 export const testDigest = () => request('POST', '/api/settings/digest/test').then((r) => r.results);
+export const testJudge = (judge) => request('POST', '/api/settings/judge/test', { judge });
 export const getSuggestions = () => request('GET', '/api/suggestions').then((r) => r.suggestions);
 export const applySuggestion = (kind, value) => request('POST', '/api/suggestions/apply', { kind, value }).then((r) => r.suggestions);
 export const dismissSuggestion = (kind, value) => request('POST', '/api/suggestions/dismiss', { kind, value }).then((r) => r.suggestions);

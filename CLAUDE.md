@@ -21,8 +21,8 @@ dealsieve is a small self-hosted filter for deal feeds. One Go binary polls a so
 | `internal/digest/` | Daily digest: `Due`, `Compose`, and the `Runner` that sends due digests every minute outside the pipeline lock; per-channel window ends in `digest_state`, deals already listed per channel in `digest_sent` |
 | `internal/notify/` | `Notifier` interface, ntfy and Telegram implementations |
 | `internal/store/` | SQLite (modernc, pure Go): deals, temperature snapshots, verdicts, actions, notification bookkeeping; numbered migrations in `migrations/` tracked by `PRAGMA user_version` |
-| `internal/api/` | `net/http` mux: JSON API (`/api/deals`, `/api/actions`, `/api/settings*`, `/api/suggestions*`, `/api/categories`, `/api/status`), `/health`, the embedded pages |
-| `internal/judge/` | Placeholder interface for a later LLM opinion; v1 ships only `Noop` |
+| `internal/api/` | `net/http` mux: JSON API (`/api/deals`, `/api/actions`, `/api/settings*` (incl. `POST /api/settings/judge/test`), `/api/suggestions*`, `/api/categories`, `/api/status`), `/health`, the embedded pages |
+| `internal/judge/` | LLM judge: OpenAI-compatible client, prompt/reply parsing, the background `Runner` |
 | `internal/version/` | `Version`, stamped with `-ldflags -X` from the `VERSION` build arg |
 | `web/` | The pages: `index.html` (inbox), `settings.html` (Settings), `static/css`, `static/js` (vanilla ES modules, no build step), embedded by `embed.go` |
 | `docs-site/` | The docs website (Astro + Starlight): hand-written Markdown pages in `src/content/docs/`, published to GitHub Pages |
@@ -61,6 +61,7 @@ Running it needs nothing but a data dir (it writes `./data/dealsieve.db`, git-ig
 - **Schema changes** go in a new `internal/store/migrations/NNN_*.sql`; never edit an applied migration.
 - **Settings:** user settings live in the `settings` document (validated in `settings.Validate`, summarised in `settings.Summarize`); every setting needs a default in `settings.Defaults`, a validation rule, a summary line, a form control on the Settings page and a docs-site entry. Env vars are for infrastructure and secrets only (`DEALSIEVE_TELEGRAM_TOKEN`, `DEALSIEVE_NTFY_TOKEN` never enter the settings, the database or an API response); a new env var goes in `config.FromEnv`, the README table and the docs-site configuration page.
 - **Mutes are settings, Hide/Junk are actions.** `POST /api/actions` routes `mute_category`/`mute_merchant` to the settings lists (a new version); settings saves are versioned, conflict-checked with `version`, and applied without a restart.
+- **The judge only annotates:** opinions never change a verdict or notify; the model is never called under the pipeline lock. Its URL and key are env vars (`DEALSIEVE_JUDGE_URL`, `DEALSIEVE_JUDGE_API_KEY`) so the key can't be redirected from the login-less page.
 - **API:** errors are `{"error": "..."}`. Writes are protected by `http.CrossOriginProtection`; every response gets `nosniff` and `no-referrer`. The page has no login by design — it's meant for a private network or behind a reverse proxy's auth.
 - **Front-end:** plain HTML, CSS and ES modules; no framework, no npm packages in `web/`, no build step (npm packages exist only in the dev tooling: `screenshots/` and `docs-site/`). Build the DOM with `textContent` and attributes, never `innerHTML` with data (deal titles are untrusted). Pure helpers (`format.js`, `sparkline.js`) get a `*.test.js` next to them.
 - **Being a good feed citizen:** keep default poll intervals reasonable, send the identifying `User-Agent` (`dealsieve/<version> (+repo URL)`), link every deal back to the original post.
