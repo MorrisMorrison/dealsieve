@@ -47,6 +47,7 @@ type Runner struct {
 	limitLogged time.Time
 	pausedUntil time.Time
 	backoff     time.Duration
+	wakeGen     uint64 // bumped by Wake; a call started before it can't undo it
 
 	testMu sync.Mutex // one Settings-page test at a time
 }
@@ -79,6 +80,7 @@ func (r *Runner) Run(ctx context.Context) {
 }
 
 func (r *Runner) Tick(ctx context.Context) {
+	gen := r.wakeGeneration()
 	s := r.Settings().Judge
 	if !s.Enabled || s.Model == "" {
 		return
@@ -127,11 +129,13 @@ func (r *Runner) Tick(ctx context.Context) {
 			// Busy, rate-limited or down: keep the deal a candidate and pause.
 			msg := Reason(err)
 			r.setErr(msg, now)
-			pause := r.startPause(now)
+			pause := r.startPause(now, gen)
 			r.Log.Warn("judge unavailable", "deal", rec.ID, "err", msg, "pause", pause)
 			return
 		}
-		r.resetBackoff()
+		if err == nil || reachedServer(err) {
+			r.resetBackoff()
+		}
 		o := store.OpinionRecord{DealID: rec.ID, Model: s.Model, JudgedAt: now}
 		if err != nil {
 			o.Status, o.Error = store.OpinionFailed, Reason(err)
@@ -154,10 +158,21 @@ func (r *Runner) paused(now time.Time) bool {
 	return now.Before(r.pausedUntil)
 }
 
-// startPause doubles the back-off (10 min up to 1 h) and returns the pause.
-func (r *Runner) startPause(now time.Time) time.Duration {
+func (r *Runner) wakeGeneration() uint64 {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	return r.wakeGen
+}
+
+// startPause doubles the back-off (10 min up to 1 h) and returns the pause.
+// If Wake ran since the tick began (gen), the failed call used the old
+// settings, so it must not undo the wake: no pause, and 0 is returned.
+func (r *Runner) startPause(now time.Time, gen uint64) time.Duration {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.wakeGen != gen {
+		return 0
+	}
 	if r.backoff == 0 {
 		r.backoff = minBackoff
 	} else {
@@ -220,7 +235,10 @@ func (r *Runner) Test(ctx context.Context, j settings.Judge) TestResult {
 // the judge was turned on, and ends a back-off pause so that fixing the model
 // or URL is retried at once. It never blocks.
 func (r *Runner) Wake() {
-	r.resetBackoff()
+	r.mu.Lock()
+	r.wakeGen++
+	r.backoff, r.pausedUntil = 0, time.Time{}
+	r.mu.Unlock()
 	select {
 	case r.wakeCh() <- struct{}{}:
 	default:

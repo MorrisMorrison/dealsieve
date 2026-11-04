@@ -72,7 +72,7 @@ type Noop struct{} // returns ErrDisabled
       Model     string
       Instructions string
       UserAgent string
-      HTTP      *http.Client // 30 s timeout in main.go
+      HTTP      *http.Client // no timeout of its own; the runner bounds each call (Tick and Test) with a 60 s context
   }
   ```
   Request body: `{"model", "messages", "max_tokens": 400, "temperature": 0}`. Headers:

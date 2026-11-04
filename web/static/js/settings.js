@@ -517,7 +517,7 @@ function judgeBlock() {
         test.disabled = false;
         status.hidden = false;
         status.className = res.ok ? 'status-ok' : 'status-err';
-        status.textContent = res.ok ? `${sentence(res.rating)}: ${res.reason}` : `Failed: ${res.error || 'unknown error'}`;
+        status.textContent = res.ok ? `${sentence(res.rating)}: ${sentence(res.reason)}` : `Failed: ${res.error || 'unknown error'}`;
       },
     },
   });

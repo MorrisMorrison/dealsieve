@@ -357,6 +357,9 @@ func TestTickConnectionErrorStopsTick(t *testing.T) {
 	if len(h.judge.calls) != 1 {
 		t.Fatalf("calls = %v, want 1 (stop when the server is unreachable)", h.judge.calls)
 	}
+	if _, err := h.st.GetOpinion(context.Background(), "mydealz:"+h.judge.calls[0]); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("an unreachable server must not store an opinion row: %v", err)
+	}
 }
 
 func TestTestRefusesConcurrentRuns(t *testing.T) {
@@ -385,3 +388,37 @@ func TestTestRefusesConcurrentRuns(t *testing.T) {
 type judgeFunc func(context.Context, Deal) (Opinion, error)
 
 func (f judgeFunc) Judge(ctx context.Context, d Deal) (Opinion, error) { return f(ctx, d) }
+
+func TestWakeDuringCallKeepsTheImmediateRetry(t *testing.T) {
+	h := newHarness(t)
+	h.addDeal(t, "a", "pass")
+	// The user saves settings while the call is in flight; the call then fails.
+	h.judge.err = func(string) error { h.r.Wake(); return &HTTPError{Status: 503} }
+	h.tickAt(0)
+	h.judge.err = nil
+	h.tickAt(time.Minute)
+	if len(h.judge.calls) != 2 {
+		t.Fatalf("calls = %v, want a retry right after a save that happened mid-call", h.judge.calls)
+	}
+	if st, _ := h.r.Status(context.Background()); st.LastError != "" {
+		t.Fatalf("status = %+v", st)
+	}
+}
+
+func TestTickUnreachedNonRetryableErrorKeepsBackoff(t *testing.T) {
+	h := newHarness(t)
+	h.addDeal(t, "a", "pass")
+	h.judge.err = func(string) error { return &HTTPError{Status: 503} }
+	h.tickAt(0)
+	h.tickAt(11 * time.Minute) // pause is now 20 min
+	h.judge.err = func(string) error { return errors.New("odd local failure") }
+	h.tickAt(32 * time.Minute) // neither retryable nor a reply: no reset
+	h.addDeal(t, "b", "pass")
+	h.judge.err = func(string) error { return &HTTPError{Status: 503} }
+	h.tickAt(32 * time.Minute) // third outage: 40 min, not 10
+	n := len(h.judge.calls)
+	h.tickAt(43 * time.Minute)
+	if len(h.judge.calls) != n {
+		t.Fatalf("calls = %v, want the back-off to keep doubling", h.judge.calls)
+	}
+}
