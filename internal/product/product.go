@@ -46,15 +46,23 @@ var fillers = wordSet(
 var (
 	bracketed = regexp.MustCompile(`\[[^\]]*\]`)
 	plusAfter = regexp.MustCompile(`([\p{L}\d])\+`)
+	// Prices and percentages in a title ("£799.99", "999€", "19,99 Euro",
+	// "20%") are dropped so they never form a spaced code. Symbol-first
+	// amounts go first, so "iPhone 15 £799" keeps its 15.
+	symbolAmounts = regexp.MustCompile(`(?:€|£|\$)\s*\d[\d.,]*`)
+	amounts       = regexp.MustCompile(`(?i)\d[\d.,]*\s*(?:€|£|\$|zł|%|\b(?:eur|euro|gbp|pln|usd)\b)`)
 )
 
 // Of splits a title into model codes, sizes, markers and other words. Text in
-// square brackets is dropped and "S24+" reads "s24 plus". A number followed by
+// square brackets and prices ("999€", "£12") are dropped, and "S24+" reads
+// "s24 plus". A number followed by
 // a unit word is one size ("16 GB" → "16gb"); a number with 4+ digits and "k"
 // is a model code ("14700k"). Only if the title has no model code, a word
 // directly followed by a short number is one ("iPhone 15" → "iphone15").
 func Of(title string) Info {
-	title = plusAfter.ReplaceAllString(bracketed.ReplaceAllString(title, " "), "$1 plus")
+	title = bracketed.ReplaceAllString(title, " ")
+	title = amounts.ReplaceAllString(symbolAmounts.ReplaceAllString(title, " "), " ")
+	title = plusAfter.ReplaceAllString(title, "$1 plus")
 	tokens := fingerprint.Tokens(title)
 	models, sizes, joined := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	for i := 0; i < len(tokens); i++ {

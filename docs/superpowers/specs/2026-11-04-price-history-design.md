@@ -10,7 +10,7 @@ When a deal comes in, show whether it is really a good price compared with what 
 
 Two deals are the same product when all of these hold:
 
-Before splitting, text in square brackets (a shop prefix like `[MediaMarkt]`) is dropped and a `+` right after a letter or digit becomes the word `plus` (`S24+` → `s24 plus`).
+Before splitting, text in square brackets (a shop prefix like `[MediaMarkt]`), prices and percentages in the title (`£799.99`, `999€`, `19,99 Euro`, `20%`) are dropped, and a `+` right after a letter or digit becomes the word `plus` (`S24+` → `s24 plus`).
 
 1. **Model codes:** both titles have model codes and the sets are identical. A model code is a token with letters and digits that isn't a quantity (`s24`, `7800x3d`, `wh1000xm5`, `rtx5080`), the same tokens the fingerprint keeps since PR #25. A number with 4+ digits followed by `k` is a model code too (`14700k`), not a size. **Spaced codes, as a fallback:** only if a title has no model code this way, a word (letters only, ≥ 2 letters, not a filler word) directly followed by a number of 1–5 digits that is not itself followed by a unit word becomes one code (`iPhone 15 Pro` → `iphone15`, `RTX 5080` → `rtx5080`). A deal without a model code gets no price history. A bundle (`s24` + `buds3`) only matches the same bundle.
 2. **Distinguishing words:** both titles have the same set of variant, accessory and condition words (multilingual list in `product`: `pro max ultra plus mini lite slim fe se air xl`, `hülle case cover coque funda etui panzerglas schutzfolie controller kabel adapter ladegerät …`, `refurbished generalüberholt gebraucht used renewed reconditionné reacondicionado odnowiony …`). So `S24` ≠ `S24 Ultra` ≠ `S24+` ≠ `S24 Hülle`, and `PS5` ≠ `PS5 Pro`.

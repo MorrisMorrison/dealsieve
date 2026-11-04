@@ -16,7 +16,7 @@ func TestOf(t *testing.T) {
 		{"Galaxy S24 5G für 549€", []string{"s24"}, nil, nil, []string{"galaxy"}},
 		{"Ryzen 7 7800X3D Prozessor", []string{"7800x3d"}, nil, nil, []string{"prozessor", "ryzen"}},
 		{"Anker Powerbank 20000mAh 2x USB-C", nil, []string{"20000mah", "2x"}, nil, []string{"anker", "powerbank", "usb"}},
-		{"Flüge nach Rom ab 19,99 Euro", nil, nil, nil, []string{"euro", "flüge", "rom"}},
+		{"Flüge nach Rom ab 19,99 Euro", nil, nil, nil, []string{"flüge", "rom"}},
 		{"Hue Lampe 3er Pack 12 Monate", nil, []string{"3er"}, nil, []string{"hue", "lampe", "monate", "pack"}},
 		{"Galaxy Buds3 + Galaxy S24 Bundle", []string{"buds3", "s24"}, nil, nil, []string{"bundle", "galaxy"}},
 		{"Apple iPhone 15 Pro 128GB", []string{"iphone15"}, []string{"128gb"}, []string{"pro"}, []string{"apple"}},
@@ -24,6 +24,11 @@ func TestOf(t *testing.T) {
 		{"Intel Core i7-14700K", []string{"14700k", "i7"}, nil, nil, []string{"core", "intel"}},
 		{"RTX 5080 Grafikkarte", []string{"rtx5080"}, nil, nil, []string{"grafikkarte"}},
 		{"Kopfhörer für 49€", nil, nil, nil, []string{"kopfhörer"}},
+		// Prices and percentages never become part of a spaced code.
+		{"Sony Kopfhörer 49€", nil, nil, nil, []string{"kopfhörer", "sony"}},
+		{"Apple iPhone 15 Pro Max 999€", []string{"iphone15"}, nil, []string{"max", "pro"}, []string{"apple"}},
+		{"iPhone 15 £799.99", []string{"iphone15"}, nil, nil, nil},
+		{"Lidl 20% Rabatt", nil, nil, nil, []string{"lidl", "rabatt"}},
 	}
 	for _, tt := range tests {
 		got := Of(tt.title)
@@ -62,6 +67,8 @@ func TestSame(t *testing.T) {
 		{"Apple iPhone 15 Pro 128GB", "Apple iPhone 15 Pro 128 GB Titan", true},
 		{"iPhone 15 128GB", "iPhone 15 Pro 128GB", false},
 		{"iPhone 15", "iPhone 16", false},
+		{"Apple iPhone 15 Pro Max 999€", "Apple iPhone 15 Pro Max 949€", true},
+		{"Apple iPhone 15 Pro Max für 999€", "Apple iPhone 15 Pro Max 949 €", true},
 		{"Intel Core i7-14700K", "Intel Core i7-14600K", false},
 		{"[MediaMarkt] Galaxy S24 128GB", "Samsung Galaxy S24 128GB Bestpreis", true},
 	}
