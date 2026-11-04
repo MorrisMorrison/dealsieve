@@ -115,7 +115,7 @@ func (s *Server) testChannel(w http.ResponseWriter, r *http.Request) {
 		Body:  "If you can read this, the channel works.",
 	})
 	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": notify.Reason(err)})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})

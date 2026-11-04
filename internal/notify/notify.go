@@ -3,6 +3,7 @@ package notify
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -20,6 +21,27 @@ type Message struct {
 
 type Notifier interface {
 	Send(ctx context.Context, m Message) error
+}
+
+// statusError is a non-2xx answer from a target. Its full text includes the
+// response body (useful in logs); short() leaves the body out.
+type statusError struct {
+	what string
+	code int
+	body string
+}
+
+func (e *statusError) Error() string { return fmt.Sprintf("%s: status %d: %s", e.what, e.code, e.body) }
+func (e *statusError) short() string { return fmt.Sprintf("%s: status %d", e.what, e.code) }
+
+// Reason describes a send error without anything a target answered, so it is
+// safe to show to whoever can reach the settings page.
+func Reason(err error) string {
+	var se *statusError
+	if errors.As(err, &se) {
+		return se.short()
+	}
+	return err.Error()
 }
 
 func DealMessage(title, price, merchant string, temperature *int, reasons []string, url, imageURL string) Message {

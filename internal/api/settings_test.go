@@ -42,6 +42,41 @@ func TestGetAndPutSettings(t *testing.T) {
 	}
 }
 
+func TestSettingsResponsesNeverContainTokens(t *testing.T) {
+	h := newHarness(t)
+	h.api.Env.TelegramToken, h.api.Env.NtfyToken = "TGTOKEN-12345", "NTFYTOKEN-67890"
+	_, get := h.do(t, "GET", "/api/settings", "")
+	put := fmt.Sprintf(`{"version":%d,"settings":{"watchlist":[],"rules":{"min_temperature":100,"category_overrides":{},"muted_categories":[],"muted_merchants":[],"block_keywords":[],"recurrence":{"window_days":90,"max_seen":2}},"channels":{"tg":{"type":"telegram","chat_id":"1"}},"notify":[],"suggestions":{"min_count":3,"window_days":30}}}`, h.svc.Current().Version)
+	resp, putBody := h.do(t, "PUT", "/api/settings", put)
+	if resp.StatusCode != 200 {
+		t.Fatalf("PUT %d: %s", resp.StatusCode, putBody)
+	}
+	for name, body := range map[string][]byte{"GET": get, "PUT": putBody} {
+		for _, tok := range []string{"TGTOKEN-12345", "NTFYTOKEN-67890"} {
+			if strings.Contains(string(body), tok) {
+				t.Errorf("%s /api/settings contains %s: %s", name, tok, body)
+			}
+		}
+	}
+}
+
+func TestCrossOriginSettingsPutIsRejected(t *testing.T) {
+	h := newHarness(t)
+	req, err := http.NewRequest("PUT", h.srv.URL+"/api/settings", strings.NewReader(`{"version":1,"settings":{}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	resp, err := h.srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("cross-site PUT = %d, want 403", resp.StatusCode)
+	}
+}
+
 func TestUndoAndHistory(t *testing.T) {
 	h := newHarness(t)
 	if resp, _ := h.do(t, "POST", "/api/settings/undo", ""); resp.StatusCode != http.StatusConflict {
@@ -74,6 +109,22 @@ func TestTestChannel(t *testing.T) {
 	}
 	if resp, _ := h.do(t, "POST", "/api/settings/test", `{"channel":{"type":"ntfy"}}`); resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Errorf("invalid channel = %d", resp.StatusCode)
+	}
+}
+
+// The page's test send must not hand the target's answer to the browser.
+func TestTestChannelHidesTargetResponseBody(t *testing.T) {
+	h := newHarness(t)
+	ntfy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "SECRET-BODY", http.StatusInternalServerError)
+	}))
+	defer ntfy.Close()
+	resp, body := h.do(t, "POST", "/api/settings/test", fmt.Sprintf(`{"channel":{"type":"ntfy","url":%q,"topic":"deals"}}`, ntfy.URL))
+	if resp.StatusCode != 200 || !strings.Contains(string(body), `"ok":false`) || !strings.Contains(string(body), "ntfy: status 500") {
+		t.Errorf("test send %d: %s", resp.StatusCode, body)
+	}
+	if strings.Contains(string(body), "SECRET-BODY") {
+		t.Errorf("response leaks the target's body: %s", body)
 	}
 }
 

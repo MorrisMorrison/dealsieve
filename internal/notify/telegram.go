@@ -31,22 +31,12 @@ func (t *Telegram) Send(ctx context.Context, m Message) error {
 		// Only a 400 means Telegram couldn't use the photo; the text alone
 		// still helps. Any other failure may have been delivered, so a
 		// fallback could duplicate the message.
-		var se *telegramStatusError
+		var se *statusError
 		if !errors.As(err, &se) || se.code != http.StatusBadRequest {
 			return err
 		}
 	}
 	return t.call(ctx, "sendMessage", map[string]string{"chat_id": t.ChatID, "text": truncate(text, 4096)})
-}
-
-type telegramStatusError struct {
-	method string
-	code   int
-	msg    string
-}
-
-func (e *telegramStatusError) Error() string {
-	return fmt.Sprintf("telegram %s: status %d: %s", e.method, e.code, e.msg)
 }
 
 func (t *Telegram) call(ctx context.Context, method string, payload map[string]string) error {
@@ -68,7 +58,7 @@ func (t *Telegram) call(ctx context.Context, method string, payload map[string]s
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return &telegramStatusError{method: method, code: resp.StatusCode, msg: string(bytes.TrimSpace(msg))}
+		return &statusError{what: "telegram " + method, code: resp.StatusCode, body: string(bytes.TrimSpace(msg))}
 	}
 	return nil
 }

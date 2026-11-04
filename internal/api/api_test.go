@@ -45,6 +45,7 @@ type harness struct {
 	st  *store.Store
 	rc  *fakeRecompute
 	svc *settingsvc.Service
+	api *Server
 }
 
 func newHarness(t *testing.T) *harness {
@@ -89,7 +90,7 @@ func newHarness(t *testing.T) *harness {
 	}
 	srv := httptest.NewServer(s.Handler())
 	t.Cleanup(srv.Close)
-	return &harness{srv: srv, st: st, rc: rc, svc: svc}
+	return &harness{srv: srv, st: st, rc: rc, svc: svc, api: s}
 }
 
 func (h *harness) do(t *testing.T, method, path, body string) (*http.Response, []byte) {
