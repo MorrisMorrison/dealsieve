@@ -1,7 +1,8 @@
 name: Release
 
 # Pushing a version tag (v0.0.1) creates the GitHub release with notes generated from the merged PRs.
-# v0.* releases are pre-releases until 1.0. The Docker image for the tag is built by docker-publish.yml.
+# v0.* releases are pre-releases until 1.0. The Docker image for the tag is built by ci.yml's publish
+# job, which runs only after the tag passes the checks.
 on:
   push:
     tags: ['v*']
