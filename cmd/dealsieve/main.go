@@ -76,7 +76,7 @@ func run(ctx context.Context) error {
 
 	// Bring stored fingerprints (and junk clicks keyed by them) up to the
 	// current fingerprint rules; a no-op unless those rules changed.
-	if n, err := st.Rekey(ctx, fingerprint.Of); err != nil {
+	if n, err := st.Rekey(ctx, fingerprint.Of, fingerprint.RekeyOld); err != nil {
 		return fmt.Errorf("rekey fingerprints: %w", err)
 	} else if n > 0 {
 		log.Info("updated fingerprints", "deals", n)

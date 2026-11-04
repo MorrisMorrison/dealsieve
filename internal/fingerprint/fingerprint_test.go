@@ -11,7 +11,7 @@ func TestCleanTitle(t *testing.T) {
 		// Model codes stay; sizes, counts and plain numbers go.
 		"Example Galaxy S24 128GB":                      "example galaxy s24",
 		"Example RTX5080 Gaming PC, 2TB SSD":            "example rtx5080 gaming pc ssd",
-		"Example WH-1000XM5 Kopfhörer":                  "example 1000xm5 kopfhörer",
+		"Example WH-1000XM5 Kopfhörer":                  "example wh 1000xm5 kopfhörer",
 		"Example 55\" OLED 4K 120Hz, 2x HDMI, 3er Pack": "example oled hdmi pack",
 		"Example Shampoo 250ml 24h":                     "example shampoo",
 	}
@@ -54,5 +54,20 @@ func TestKeySeparatesModels(t *testing.T) {
 	}
 	if Key("Shop", CleanTitle("Example Galaxy S24 128GB")) != Key("Shop", CleanTitle("Example Galaxy S24 256GB")) {
 		t.Error("the same model in another size got a different key")
+	}
+}
+
+func TestUnitWordsStayWithoutANumber(t *testing.T) {
+	if got := CleanTitle("Example PS Plus Uhr"); got != "example ps plus uhr" {
+		t.Errorf("CleanTitle = %q", got)
+	}
+}
+
+func TestRekeyOld(t *testing.T) {
+	if got := RekeyOld("example shop|gb ssd"); got != "example shop|ssd" {
+		t.Errorf("RekeyOld = %q", got)
+	}
+	if got := RekeyOld("-|oled tv"); got != "-|oled tv" {
+		t.Errorf("RekeyOld unchanged key = %q", got)
 	}
 }

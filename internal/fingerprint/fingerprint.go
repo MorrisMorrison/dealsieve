@@ -35,6 +35,14 @@ var units = map[string]bool{
 	"eur": true, "euro": true, "ct": true, "uhr": true, "ps": true, "pa": true, "lagig": true,
 }
 
+// sizeUnits are also dropped on their own ("gb" in "16 GB"): unlike "uhr" or
+// "ps" they are never product words.
+var sizeUnits = map[string]bool{
+	"kb": true, "mb": true, "gb": true, "tb": true, "mg": true, "kg": true, "ml": true, "cl": true,
+	"mm": true, "cm": true, "km": true, "kwh": true, "mah": true,
+	"hz": true, "khz": true, "mhz": true, "ghz": true, "fps": true, "lagig": true, "tlg": true, "stk": true,
+}
+
 // CleanTitle lowercases a title and drops plain numbers, sizes like "16gb",
 // punctuation, one-letter words and stopwords. Model codes like "s24" stay.
 func CleanTitle(title string) string {
@@ -62,11 +70,11 @@ func Key(merchant, cleanTitle string) string {
 	return m + "|" + strings.Join(slices.Compact(words), " ")
 }
 
-// isQuantity reports whether w is a number, a unit on its own ("gb" in
+// isQuantity reports whether w is a number, a size unit on its own ("gb" in
 // "16 GB"), a number followed by a unit ("16gb", "2x") or a pack size like
 // "4x10".
 func isQuantity(w string) bool {
-	if units[w] {
+	if sizeUnits[w] {
 		return true
 	}
 	rest := strings.TrimLeftFunc(w, unicode.IsDigit)
@@ -83,4 +91,21 @@ func isQuantity(w string) bool {
 func Of(merchant, title string) (clean, key string) {
 	clean = CleanTitle(title)
 	return clean, Key(merchant, clean)
+}
+
+// RekeyOld converts a key made by an older CleanTitle, which dropped every
+// token containing a digit, to the current rules. Such keys have no digits,
+// so only the words the current rules drop (standalone size units) change.
+func RekeyOld(key string) string {
+	merchant, words, ok := strings.Cut(key, "|")
+	if !ok {
+		return key
+	}
+	kept := strings.Fields(words)[:0]
+	for _, w := range strings.Fields(words) {
+		if !isQuantity(w) {
+			kept = append(kept, w)
+		}
+	}
+	return Key(merchant, strings.Join(kept, " "))
 }
