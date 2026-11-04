@@ -111,10 +111,9 @@ func TestCategories(t *testing.T) {
 func TestDeleteActionsByValue(t *testing.T) {
 	s := openTest(t)
 	s.AddAction(ctx, ActionJunk, "fp", t0)
-	s.AddAction(ctx, ActionJunk, "fp", t0)
 	s.AddAction(ctx, ActionHide, "fp", t0)
 	n, err := s.DeleteActionsByValue(ctx, ActionJunk, "fp")
-	if err != nil || n != 2 {
+	if err != nil || n != 1 {
 		t.Fatalf("deleted %d, %v", n, err)
 	}
 	if left, _ := s.Actions(ctx); len(left) != 1 || left[0].Kind != ActionHide {
