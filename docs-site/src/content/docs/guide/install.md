@@ -49,6 +49,7 @@ Open the page and click the gear in the header to reach **Settings**: watchlist,
 The page has no authentication, and neither does the Settings page. Keep it on a private network or put it behind your reverse proxy's authentication. If you use `DEALSIEVE_NTFY_TOKEN`, also set `DEALSIEVE_NTFY_TOKEN_HOST` to your ntfy server's host: without it the token is sent to every ntfy channel (and by **Send test**), so anyone who can reach the page could point a channel at a server of their own and receive it. Use an ntfy token that is scoped to the dealsieve topic only.
 :::
 
+- **Home screen.** dealsieve is an installable web app. On iOS open the page in Safari, tap Share, then **Add to Home Screen**. On Android use Chrome's menu, **Install app** (or **Add to Home screen**). It opens full-screen with its own icon; deal links still open in your browser. There is no offline mode, so away from home you still need your VPN or authenticating proxy.
 - **Data.** The SQLite database, including your settings, lives in `/data`. With a bind mount instead of a named volume, make the directory writable by UID 65532.
 - **Settings** apply immediately. Environment variables (poll intervals, secrets, listen address) are read at startup; see the reference.
 - **Upgrading from v0.0.1.** The YAML config file is no longer read; re-enter your settings on the page.

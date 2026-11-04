@@ -23,17 +23,30 @@ import (
 	"github.com/MorrisMorrison/dealsieve/internal/settingsvc"
 	"github.com/MorrisMorrison/dealsieve/internal/source"
 	"github.com/MorrisMorrison/dealsieve/internal/store"
+	"github.com/MorrisMorrison/dealsieve/web"
 )
 
 type fakeRecompute struct {
 	calls, applied int
 	err            error
+	// cancelled counts recomputes that received an already-cancelled context.
+	cancelled int
 }
+
+// disconnectKey carries the CancelFunc that simulates the client going away.
+type disconnectKey struct{}
 
 func (f *fakeRecompute) ApplySettings(settings.Settings) { f.applied++ }
 
-func (f *fakeRecompute) RecomputeRecent(context.Context) (int, error) {
+func (f *fakeRecompute) RecomputeRecent(ctx context.Context) (int, error) {
 	f.calls++
+	// The client disconnects after the click is stored, just as the re-check starts.
+	if cancel, ok := ctx.Value(disconnectKey{}).(context.CancelFunc); ok {
+		cancel()
+	}
+	if ctx.Err() != nil {
+		f.cancelled++
+	}
 	if f.err != nil {
 		return 0, f.err
 	}
@@ -199,6 +212,39 @@ func TestAddAndDeleteAction(t *testing.T) {
 	}
 	if h.rc.calls != 3 {
 		t.Errorf("recompute calls = %d, want 3", h.rc.calls)
+	}
+}
+
+// serve calls the handler directly with a request whose client disconnects
+// right after the click is stored (see fakeRecompute).
+func (h *harness) serve(t *testing.T, method, path, body string) int {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ctx = context.WithValue(ctx, disconnectKey{}, cancel)
+	req := httptest.NewRequest(method, path, strings.NewReader(body)).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	h.api.Handler().ServeHTTP(rec, req)
+	return rec.Code
+}
+
+func TestRecomputeSurvivesClientDisconnect(t *testing.T) {
+	h := newHarness(t)
+	if code := h.serve(t, "POST", "/api/actions", `{"kind":"hide_deal","deal_id":"mydealz:a"}`); code != http.StatusCreated {
+		t.Fatalf("add = %d", code)
+	}
+	if code := h.serve(t, "POST", "/api/actions/undo", `{"kind":"hide_deal","deal_id":"mydealz:a"}`); code != http.StatusNoContent {
+		t.Fatalf("undo = %d", code)
+	}
+	a, err := h.st.AddAction(context.Background(), store.ActionHide, "mydealz:a", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code := h.serve(t, "DELETE", "/api/actions/"+jsonID(a.ID), ""); code != http.StatusNoContent {
+		t.Fatalf("delete = %d", code)
+	}
+	if h.rc.calls != 3 || h.rc.cancelled != 0 {
+		t.Errorf("recompute calls = %d (want 3), ran with a cancelled context %d times (want 0)", h.rc.calls, h.rc.cancelled)
 	}
 }
 
@@ -541,6 +587,29 @@ func TestRepeatClickIsAccepted(t *testing.T) {
 	}
 	if actions, _ := h.st.Actions(context.Background()); len(actions) != 0 {
 		t.Errorf("actions after undo = %+v", actions)
+	}
+}
+
+func TestManifestAndIconsContentTypes(t *testing.T) {
+	h := newHarness(t)
+	s := *h.api
+	s.Assets = web.Assets
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+	for path, want := range map[string]string{
+		"/static/manifest.webmanifest":        "application/manifest+json",
+		"/static/icons/icon-192.png":          "image/png",
+		"/static/icons/apple-touch-icon.png":  "image/png",
+		"/static/icons/icon-maskable-512.png": "image/png",
+	} {
+		resp, err := srv.Client().Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 200 || !strings.HasPrefix(resp.Header.Get("Content-Type"), want) {
+			t.Errorf("%s: %d %q, want %s", path, resp.StatusCode, resp.Header.Get("Content-Type"), want)
+		}
 	}
 }
 

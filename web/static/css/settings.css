@@ -65,6 +65,8 @@ body.settings-page .history li { display: flex; justify-content: space-between; 
 body.settings-page .history li:first-child { border-top: 0; }
 body.settings-page .history .when { color: var(--faint); white-space: nowrap; }
 
+body.settings-page .savebar { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(140%); transition: transform .2s ease; z-index: 20; display: flex; gap: 12px; align-items: center; padding: 10px 12px 10px 16px; border-radius: 12px; background: var(--text); color: var(--bg); box-shadow: 0 8px 24px rgba(0,0,0,.2); width: min(560px, calc(100% - 32px)); }
+
 body.settings-page .clicks { list-style: none; margin: 0; padding: 0; display: grid; }
 body.settings-page .clicks li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; }
 body.settings-page .clicks li:first-child { border-top: 0; }
@@ -73,12 +75,11 @@ body.settings-page .clicks .kind { color: var(--muted); font-size: 12px; }
 body.settings-page .clicks a { color: inherit; }
 body.settings-page .clicks .when { color: var(--faint); white-space: nowrap; }
 
-body.settings-page .savebar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%) translateY(140%); transition: transform .2s ease; z-index: 20; display: flex; gap: 12px; align-items: center; padding: 10px 12px 10px 16px; border-radius: 12px; background: var(--text); color: var(--bg); box-shadow: 0 8px 24px rgba(0,0,0,.2); width: min(560px, calc(100% - 32px)); }
 body.settings-page .savebar.show { transform: translateX(-50%) translateY(0); }
 body.settings-page .savebar .grow { flex: 1; }
 body.settings-page .savebar .btn { border-color: transparent; }
 body.settings-page .savebar .btn.ghost { color: var(--bg); opacity: .8; }
-body.settings-page .toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 21; padding: 10px 16px; border-radius: 10px; background: var(--accent); color: var(--on-accent); box-shadow: 0 8px 24px rgba(0,0,0,.2); display: none; }
+body.settings-page .toast { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 21; padding: 10px 16px; border-radius: 10px; background: var(--accent); color: var(--on-accent); box-shadow: 0 8px 24px rgba(0,0,0,.2); display: none; }
 
 body.settings-page .banner { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 10px; background: var(--warn-soft); color: var(--text); margin-bottom: 14px; font-size: 13px; }
 body.settings-page .banner a { color: var(--accent); font-weight: 550; text-decoration: none; margin-left: auto; }
@@ -90,7 +91,7 @@ body.settings-page .banner a { color: var(--accent); font-weight: 550; text-deco
 }
 
 /* Keeps the app bar's "Back to deals" link and extra bits the prototype's mock didn't need. */
-body.settings-page .app { padding-bottom: 96px; }
+body.settings-page .app { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 body.settings-page .crumb { color: var(--muted); font-weight: 400; }
 body.settings-page .field-error { color: var(--block); font-size: 12.5px; }
 body.settings-page .invalid { border-color: var(--block); }
@@ -109,7 +110,7 @@ body.settings-page .suggestion .examples { margin-top: 2px; }
 body.settings-page .history li .summary { min-width: 0; overflow-wrap: anywhere; }
 body.settings-page .add-channel .pick { display: flex; gap: 6px; }
 body.settings-page .savebar .grow { display: block; }
-body.settings-page .toast { bottom: 84px; }
+body.settings-page .toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
 body.settings-page .add-channel { align-content: center; gap: 4px; }
 /* Sticky so a save error is visible wherever the user has scrolled to. */
 body.settings-page #page-error { position: sticky; top: 8px; z-index: 25; box-shadow: var(--shadow); border: 1px solid var(--warn); }
