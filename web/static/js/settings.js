@@ -165,7 +165,7 @@ function renderSuggestions() {
   const sg = st.draft.suggestions;
   const pred = under('suggestions');
   return [
-    items.length ? items : h('p', { className: 'empty', textContent: 'No suggestions right now.' }),
+    ...(items.length ? items : [h('p', { className: 'empty', textContent: 'No suggestions right now.' })]),
     h('div', { className: 'field', style: 'margin-top:14px' },
       h('div', { className: 'row help' }, 'Suggest after ',
         numberInput(sg.min_count, (v) => { sg.min_count = v; }, { min: 2, label: 'Hides or junks before suggesting', width: '64px', pred }),
@@ -556,7 +556,10 @@ function initNav() {
     mark(id);
   }));
   const io = new IntersectionObserver(
-    (entries) => entries.forEach((en) => { if (en.isIntersecting) mark(en.target.id); }),
+    (entries) => entries.forEach((en) => {
+      // At the very top the short first card sits above the observed band; keep it highlighted.
+      if (en.isIntersecting) mark(scrollY < 40 ? 'suggestions' : en.target.id);
+    }),
     { rootMargin: '-40% 0px -55% 0px' },
   );
   document.querySelectorAll('.sections .card').forEach((c) => io.observe(c));
