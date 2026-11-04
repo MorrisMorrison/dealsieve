@@ -18,6 +18,7 @@ import (
 	"github.com/MorrisMorrison/dealsieve/internal/config"
 	"github.com/MorrisMorrison/dealsieve/internal/judge"
 	"github.com/MorrisMorrison/dealsieve/internal/poller"
+	"github.com/MorrisMorrison/dealsieve/internal/product"
 	"github.com/MorrisMorrison/dealsieve/internal/settings"
 	"github.com/MorrisMorrison/dealsieve/internal/settingsvc"
 	"github.com/MorrisMorrison/dealsieve/internal/source"
@@ -375,5 +376,54 @@ func TestStatusWithoutJudgeRunner(t *testing.T) {
 	resp, body := h.do(t, "GET", "/api/status", "")
 	if resp.StatusCode != 200 || !strings.Contains(string(body), `"judge"`) {
 		t.Errorf("status %d: %s", resp.StatusCode, body)
+	}
+}
+
+func TestListDealsPriceHistory(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	now := h.api.Now()
+	seed := func(id, title, price string, firstSeen time.Time) {
+		d := source.Deal{ID: "mydealz:" + id, Source: "mydealz", URL: "https://example.test/" + id,
+			Title: title, Merchant: "Example Air", Price: price, Temperature: intp(200)}
+		if _, err := h.st.UpsertDeal(ctx, d, source.FeedTrending, strings.ToLower(title), "air|"+id, firstSeen); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.st.SaveVerdict(ctx, store.Verdict{DealID: d.ID, Decision: "pass", Score: 200, DecidedAt: firstSeen}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seed("p1", "Galaxy S24 128GB", "599€", now.Add(-time.Hour))
+	seed("p2", "Samsung Galaxy S24 128GB", "549€", now.AddDate(0, 0, -40)) // too old to be listed, still history
+	if _, err := h.st.ReindexProducts(ctx, product.Index); err != nil {
+		t.Fatal(err)
+	}
+
+	_, body := h.do(t, "GET", "/api/deals", "")
+	var got struct {
+		Deals []struct {
+			ID           string           `json:"id"`
+			PriceHistory *product.History `json:"price_history"`
+		} `json:"deals"`
+	}
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]*product.History{}
+	for _, d := range got.Deals {
+		byID[d.ID] = d.PriceHistory
+	}
+	p1, ok := byID["mydealz:p1"]
+	if !ok || p1 == nil {
+		t.Fatalf("p1 has no price history: %s", body)
+	}
+	if p1.Status != "above" || p1.DiffCents != 5000 || p1.Count != 1 || p1.Lowest.ID != "mydealz:p2" || p1.Lowest.Price != "549€" {
+		t.Errorf("p1 history = %+v", p1)
+	}
+	if byID["mydealz:a"] != nil {
+		t.Errorf("deal without model code has history: %+v", byID["mydealz:a"])
+	}
+	if strings.Count(string(body), `"price_history"`) != 1 {
+		t.Errorf("price_history should be omitted when empty: %s", body)
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/MorrisMorrison/dealsieve/internal/config"
 	"github.com/MorrisMorrison/dealsieve/internal/fingerprint"
 	"github.com/MorrisMorrison/dealsieve/internal/notify"
+	"github.com/MorrisMorrison/dealsieve/internal/product"
 	"github.com/MorrisMorrison/dealsieve/internal/rules"
 	"github.com/MorrisMorrison/dealsieve/internal/settings"
 	"github.com/MorrisMorrison/dealsieve/internal/source"
@@ -55,6 +56,9 @@ func (p *Pipeline) Ingest(ctx context.Context, feed source.Feed, deals []source.
 		rec, err := p.Store.UpsertDeal(ctx, d, feed, clean, key, now)
 		if err != nil {
 			return fmt.Errorf("store deal %s: %w", d.ID, err)
+		}
+		if err := p.indexProduct(ctx, d); err != nil {
+			return fmt.Errorf("index deal %s: %w", d.ID, err)
 		}
 		res, err := p.decide(ctx, rec, facts, now)
 		if err != nil {
@@ -232,4 +236,14 @@ func (p *Pipeline) retryPending(ctx context.Context, now time.Time) map[string]b
 		p.send(ctx, rec, v.Reasons, pn.Channel, now)
 	}
 	return attempted
+}
+
+// indexProduct keeps the deal's price-history index current; a deal whose
+// title lost its model code or whose price stopped parsing loses its row.
+func (p *Pipeline) indexProduct(ctx context.Context, d source.Deal) error {
+	models, currency, cents, ok := product.Index(d.Title, d.Price)
+	if !ok {
+		return p.Store.DeleteProduct(ctx, d.ID)
+	}
+	return p.Store.SetProduct(ctx, d.ID, models, currency, cents)
 }

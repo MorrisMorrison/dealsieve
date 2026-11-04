@@ -364,3 +364,21 @@ func TestRecurrenceIsNotRetroactive(t *testing.T) {
 		t.Errorf("third = %+v, want recurring block", v)
 	}
 }
+
+func TestIngestIndexesProducts(t *testing.T) {
+	h := newHarness(t, settings.When{})
+	d := deal("a", "Samsung Galaxy S24 128GB", intp(200))
+	h.ingest(t, source.FeedTrending, d)
+	rows, err := h.st.ProductCandidates(ctx, []string{"s24"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].ID != "mydealz:a" || rows[0].Cents != 900 || rows[0].Currency != "EUR" {
+		t.Fatalf("rows = %+v", rows)
+	}
+	d.Price = "Gratis"
+	h.ingest(t, source.FeedTrending, d)
+	if rows, _ := h.st.ProductCandidates(ctx, []string{"s24"}); len(rows) != 0 {
+		t.Errorf("rows after price became unparseable = %+v", rows)
+	}
+}
