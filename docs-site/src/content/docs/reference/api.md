@@ -21,18 +21,18 @@ The web page talks to the backend only through this JSON API. Errors are returne
 | `POST /api/suggestions/apply` | Accept a suggestion. |
 | `POST /api/suggestions/dismiss` | Dismiss a suggestion for good. |
 | `GET /api/categories` | Categories seen in stored deals. |
-| `GET /api/status` | Per feed: last successful poll and last error; plus a `judge` block (see below). |
+| `GET /api/status` | One row per source and feed (`source`, `label`, `feed`, last successful poll, last error), plus `sources` (the enabled sources as `{name, label}`) and a `judge` block (see below). |
 | `GET /health` | Liveness for monitors. |
 
 ## `GET /api/deals`
 
-Returns up to 200 deals, sorted by score and then by first-seen time. Each deal carries its verdict, the reasons, the current temperature and the temperature history (used for the sparkline). An unknown `view` returns `400`.
+Returns up to 200 deals, sorted by score and then by first-seen time. Each deal carries its verdict, the reasons, the current temperature and the temperature history (used for the sparkline). Add `source=<name>` (`mydealz`, `hotukdeals`, `dealabs`, `preisjaeger`, `chollometro` or `pepperpl`) to list one source only; an unknown `view` or an unknown or disabled `source` returns `400`. Every deal carries `source` and `source_label`.
 
 The response also contains `counts` next to `deals`, with the number of deals per view (`passed`, `watchlist`, `blocked`) over the same window, whichever view you listed.
 
 ```json
 {
-  "deals": [ { "id": "mydealz:123456", "title": "...", "reasons": ["..."] } ],
+  "deals": [ { "id": "mydealz:123456", "source": "mydealz", "source_label": "mydealz", "title": "...", "reasons": ["..."] } ],
   "counts": { "passed": 12, "watchlist": 2, "blocked": 40 }
 }
 ```
@@ -65,6 +65,7 @@ Removes the action with that ID and recomputes verdicts. Answers `204`, or `404`
   "updated_at": "2026-11-04T10:15:00Z",
   "settings": {
     "watchlist": ["oled"],
+    "sources": { "mydealz": { "enabled": true }, "hotukdeals": { "enabled": true, "min_temperature": 150 } },
     "rules": {
       "min_temperature": 100,
       "category_overrides": { "Elektronik": 60 },
@@ -80,11 +81,18 @@ Removes the action with that ID and recomputes verdicts. Answers `204`, or `404`
     "notify": [ { "when": "watchlist", "channels": ["phone", "tg"] } ],
     "suggestions": { "min_count": 3, "window_days": 30 }
   },
-  "warnings": { "tg": "DEALSIEVE_TELEGRAM_TOKEN isn't set on the server, so this channel can't send." }
+  "warnings": { "tg": "DEALSIEVE_TELEGRAM_TOKEN isn't set on the server, so this channel can't send." },
+  "sites": [
+    { "name": "mydealz", "label": "mydealz", "domain": "mydealz.de" },
+    { "name": "hotukdeals", "label": "hotukdeals", "domain": "hotukdeals.com" },
+    { "name": "pepperpl", "label": "pepper.pl", "domain": "pepper.pl" }
+  ]
 }
 ```
 
 `warnings` maps channel names to messages and is empty when there is nothing to warn about. Secrets never appear in the settings.
+
+`sites` lists every source dealsieve knows (all six, in display order; shortened above) with its display label and domain. It is read-only context for the Settings page and isn't part of the settings document. A source without `min_temperature` uses the global minimum.
 
 ## `PUT /api/settings`
 

@@ -267,3 +267,20 @@ func TestJudgeKeyNeverInResponses(t *testing.T) {
 		}
 	}
 }
+
+func TestSettingsBodyListsSites(t *testing.T) {
+	h := newHarness(t)
+	_, body := h.do(t, "GET", "/api/settings", "")
+	var got struct {
+		Sites []struct{ Name, Label, Domain string }
+	}
+	if err := json.Unmarshal(body, &got); err != nil || len(got.Sites) != 6 {
+		t.Fatalf("sites: %v %s", err, body)
+	}
+	if last := got.Sites[5]; last.Name != "pepperpl" || last.Label != "pepper.pl" || last.Domain != "pepper.pl" {
+		t.Errorf("last site = %+v", last)
+	}
+	if got.Sites[1].Domain != "hotukdeals.com" {
+		t.Errorf("second site = %+v", got.Sites[1])
+	}
+}

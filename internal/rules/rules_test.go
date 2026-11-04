@@ -19,7 +19,7 @@ func engine() *Engine {
 		MutedMerchants:    []string{"Example Air"},
 		BlockKeywords:     []string{"Gratisprobe"},
 		Recurrence:        settings.Recurrence{WindowDays: 90, MaxSeen: 2},
-	}, []string{"RTX 5080", "oled"})
+	}, []string{"RTX 5080", "oled"}, nil)
 }
 
 func TestEvaluate(t *testing.T) {
@@ -85,5 +85,39 @@ func TestBlockedWatchlistHitKeepsBothReasons(t *testing.T) {
 func TestWindow(t *testing.T) {
 	if engine().Window() != 90*24*time.Hour {
 		t.Errorf("window = %v", engine().Window())
+	}
+}
+
+func TestTemperatureThresholdPrecedence(t *testing.T) {
+	r := settings.Defaults().Rules // min 100
+	r.CategoryOverrides = map[string]int{"Gaming": 50}
+	e := New(r, nil, map[string]int{"hotukdeals": 150})
+	temp := func(n int) *int { return &n }
+	cases := []struct {
+		name, source, category string
+		temperature            int
+		decision               Decision
+		reason                 string
+	}{
+		{"global decides", "mydealz", "", 90, Block, "too cold: 90° < 100°"},
+		{"source decides block", "hotukdeals", "", 120, Block, "too cold: 120° < 150° (hotukdeals minimum)"},
+		{"source decides pass", "hotukdeals", "", 210, Pass, "hot: 210° (hotukdeals minimum 150°)"},
+		{"category beats source", "hotukdeals", "Gaming", 60, Pass, "hot: 60° (minimum 50°)"},
+		{"global pass", "mydealz", "", 120, Pass, "hot: 120° (minimum 100°)"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			res := e.Evaluate(Deal{Title: "Example", Source: c.source, Category: c.category, Fingerprint: "x",
+				Temperature: temp(c.temperature), InTrending: true}, Facts{})
+			if res.Decision != c.decision || res.Reasons[0] != c.reason {
+				t.Errorf("got %s %q, want %s %q", res.Decision, res.Reasons, c.decision, c.reason)
+			}
+		})
+	}
+	// A watchlist hit below a source minimum names it too.
+	w := New(r, []string{"example"}, map[string]int{"hotukdeals": 150})
+	res := w.Evaluate(Deal{Title: "Example", Source: "hotukdeals", Fingerprint: "x", Temperature: temp(120), InTrending: true}, Facts{})
+	if !slices.Contains(res.Reasons, "below the hotukdeals minimum of 150°, kept for your watchlist") {
+		t.Errorf("watchlist reasons = %q", res.Reasons)
 	}
 }

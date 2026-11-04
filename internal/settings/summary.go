@@ -31,6 +31,7 @@ func Summarize(prev, next Settings) []string {
 		out = append(out, digestSummary(n))
 	}
 	out = append(out, judgeDiff(prev.Judge, next.Judge)...)
+	out = append(out, sourcesDiff(prev, next)...)
 	if p, n := prev.Suggestions, next.Suggestions; p != n {
 		out = append(out, fmt.Sprintf("Suggestions: %d in %d days → %d in %d days", p.MinCount, p.WindowDays, n.MinCount, n.WindowDays))
 	}
@@ -42,6 +43,27 @@ func digestSummary(d Digest) string {
 		return "Daily digest off"
 	}
 	return fmt.Sprintf("Daily digest at %s (%s) to %s, top %d", d.Time, d.Timezone, strings.Join(d.Channels, ", "), d.Top)
+}
+
+func sourcesDiff(prev, next Settings) []string {
+	var out []string
+	if p, n := prev.EnabledSources(), next.EnabledSources(); !slices.Equal(p, n) {
+		labels := make([]string, len(n))
+		for i, name := range n {
+			labels[i] = SourceLabel(name)
+		}
+		out = append(out, "Sources: "+strings.Join(labels, ", "))
+	}
+	for _, name := range SourceNames {
+		p, n := prev.Sources[name].MinTemperature, next.Sources[name].MinTemperature
+		switch {
+		case n != nil && (p == nil || *p != *n):
+			out = append(out, fmt.Sprintf("%s minimum %d°", SourceLabel(name), *n))
+		case n == nil && p != nil:
+			out = append(out, SourceLabel(name)+" minimum: global")
+		}
+	}
+	return out
 }
 
 func listDiff(label string, prev, next []string) []string {

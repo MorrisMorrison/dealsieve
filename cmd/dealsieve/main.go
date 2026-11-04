@@ -25,24 +25,13 @@ import (
 	"github.com/MorrisMorrison/dealsieve/internal/settings"
 	"github.com/MorrisMorrison/dealsieve/internal/settingsvc"
 	"github.com/MorrisMorrison/dealsieve/internal/source"
-	"github.com/MorrisMorrison/dealsieve/internal/source/mydealz"
+	"github.com/MorrisMorrison/dealsieve/internal/source/pepper"
 	"github.com/MorrisMorrison/dealsieve/internal/store"
 	"github.com/MorrisMorrison/dealsieve/internal/version"
 	"github.com/MorrisMorrison/dealsieve/web"
 )
 
 const repoURL = "https://github.com/MorrisMorrison/dealsieve"
-
-// wakeJudge applies settings to the pipeline and lets the judge tick now.
-type wakeJudge struct {
-	*pipeline.Pipeline
-	judge *judge.Runner
-}
-
-func (w wakeJudge) ApplySettings(s settings.Settings) {
-	w.Pipeline.ApplySettings(s)
-	w.judge.Wake()
-}
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
@@ -94,7 +83,17 @@ func run(ctx context.Context) error {
 		},
 		Now: time.Now, Log: log,
 	}
-	svc = &settingsvc.Service{Store: st, Apply: wakeJudge{pipe, jr}, Now: time.Now}
+	fetchers := map[string]source.Fetcher{}
+	for _, site := range pepper.Sites() {
+		fetchers[site.Name] = &pepper.Client{Site: site, BaseURL: env.SourceURLs[site.Name], UserAgent: userAgent, HTTP: feedClient, Log: log}
+	}
+	pl := poller.New(fetchers, pipe, map[source.Feed]time.Duration{
+		source.FeedTrending: env.PollTrending,
+		source.FeedNew:      env.PollNew,
+	}, log)
+	// The poller exists before the service too, so that loading the settings
+	// also picks the sources it runs.
+	svc = &settingsvc.Service{Store: st, Apply: applyAll{pipe, pl, jr}, Now: time.Now}
 	if err := svc.Load(ctx); err != nil {
 		return fmt.Errorf("load settings: %w", err)
 	}
@@ -115,16 +114,6 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("recompute verdicts: %w", err)
 	}
 
-	src := &mydealz.Client{
-		BaseURL:   env.MydealzURL,
-		UserAgent: userAgent,
-		HTTP:      feedClient,
-		Log:       log,
-	}
-	pl := poller.New(src, pipe, map[source.Feed]time.Duration{
-		source.FeedTrending: env.PollTrending,
-		source.FeedNew:      env.PollNew,
-	}, log)
 	// Both must finish before the deferred st.Close(), or they hit a closed database.
 	var wg sync.WaitGroup
 	wg.Go(func() { pl.Run(ctx) })
@@ -163,6 +152,20 @@ func run(ctx context.Context) error {
 	cancel()
 	wg.Wait()
 	return srvErr
+}
+
+// applyAll puts settings into effect in the pipeline and the poller (which
+// sources it runs) and lets the judge tick now.
+type applyAll struct {
+	*pipeline.Pipeline
+	poller *poller.Poller
+	judge  *judge.Runner
+}
+
+func (a applyAll) ApplySettings(s settings.Settings) {
+	a.Pipeline.ApplySettings(s)
+	a.poller.SetSources(s.EnabledSources())
+	a.judge.Wake()
 }
 
 func pruneLoop(ctx context.Context, pipe *pipeline.Pipeline, log *slog.Logger) {

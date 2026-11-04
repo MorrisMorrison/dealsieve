@@ -20,6 +20,8 @@ const MaxBytes = 4000
 const maxTitle = 80
 
 type Item struct {
+	// Source is the site label, empty when only one source is on.
+	Source      string
 	Title       string
 	URL         string
 	Price       string
@@ -103,6 +105,9 @@ func line(prefix string, it Item, asHTML bool) string {
 	title := cut(it.Title)
 	if asHTML {
 		title = fmt.Sprintf(`<a href="%s">%s</a>`, html.EscapeString(it.URL), html.EscapeString(title))
+	}
+	if it.Source != "" {
+		title = maybeEscape(it.Source, asHTML) + " · " + title
 	}
 	parts := []string{prefix + title}
 	if it.Price != "" {

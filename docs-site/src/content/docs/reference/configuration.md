@@ -20,6 +20,17 @@ Saving validates the whole page at once and reports every problem under its fiel
 |---|---|---|
 | Watchlist | empty | Keywords. A deal whose title contains one (case-insensitive) is a watchlist hit. |
 
+### Sources
+
+| Setting | Default | Validation |
+|---|---|---|
+| Source on/off | mydealz on, the others off | One switch each for mydealz, hotukdeals, dealabs, preisjaeger, chollometro and pepper.pl. At least one must be on. |
+| Minimum temperature (per source) | none | Optional whole number, 0 or more; empty means the global minimum. Used instead of the global minimum for deals from that source. |
+
+Turning a source on starts polling its feeds right away; turning it off stops polling it and hides its deals (they are kept until the 180-day prune, so turning it on again brings them back). The minimum temperature applies in this order: the category's own minimum, then the source's minimum, then the global minimum. Reasons name the source's minimum, for example `too cold: 80° < 150° (hotukdeals minimum)` or `hot: 210° (hotukdeals minimum 150°)`.
+
+With more than one source on, the inbox shows each deal's site, offers a source filter, and notifications and digest lines start with the site (`hotukdeals · <title>`). The sites use the same RSS format as mydealz and are polled with the same intervals and User-Agent. Prices are shown as the feed gives them (£, €, zł); nothing is converted.
+
 ### Filters
 
 | Setting | Default | Validation |
@@ -30,7 +41,7 @@ Saving validates the whole page at once and reports every problem under its fiel
 | Muted categories | empty | Categories that are always blocked. |
 | Block keywords | empty | Blocked when the title contains one (case-insensitive substring). |
 
-The order in which these rules apply is described in [How it works](/dealsieve/guide/how-it-works/#the-rule-order).
+The order in which these rules apply is described in [How it works](/dealsieve/guide/how-it-works/#the-rule-order). The watchlist, mutes, block keywords and category minimums apply to every source.
 
 ### Recurring deals
 
@@ -108,7 +119,12 @@ Every save is stored as a version with a summary of what changed (for example `A
 | `DEALSIEVE_POLL_NEW` | `2m` | Interval for the feed of every new deal (watchlist matching only). Minimum `1m`. |
 | `DEALSIEVE_TELEGRAM_TOKEN` | | Bot token, needed for Telegram channels |
 | `DEALSIEVE_NTFY_TOKEN` | | Access token for a protected ntfy server |
-| `DEALSIEVE_MYDEALZ_URL` | `https://www.mydealz.de` | Feed host (for tests) |
+| `DEALSIEVE_MYDEALZ_URL` | `https://www.mydealz.de` | Feed host (for tests or a mirror) |
+| `DEALSIEVE_HOTUKDEALS_URL` | `https://www.hotukdeals.com` | Feed host (for tests or a mirror) |
+| `DEALSIEVE_DEALABS_URL` | `https://www.dealabs.com` | Feed host (for tests or a mirror) |
+| `DEALSIEVE_PREISJAEGER_URL` | `https://www.preisjaeger.at` | Feed host (for tests or a mirror) |
+| `DEALSIEVE_CHOLLOMETRO_URL` | `https://www.chollometro.com` | Feed host (for tests or a mirror) |
+| `DEALSIEVE_PEPPERPL_URL` | `https://www.pepper.pl` | Feed host (for tests or a mirror) |
 | `DEALSIEVE_PUBLIC_URL` | unset | Optional. The address you open dealsieve at, as an absolute http(s) URL, e.g. `https://deals.example.com`. The daily digest uses it as its link to the inbox (the click target of the ntfy message, the last line of the Telegram message). |
 
 | `DEALSIEVE_JUDGE_URL` | `https://openrouter.ai/api/v1` | Base URL of an OpenAI-compatible chat-completions API for the [LLM judge](/dealsieve/guide/llm-judge/); requests go to `<url>/chat/completions`. An environment variable on purpose: the page has no login, so the key can't be redirected to another host from the page. |

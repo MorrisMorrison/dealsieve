@@ -125,3 +125,25 @@ func TestComposeStaysUnderTheLimit(t *testing.T) {
 		t.Errorf("title %q, body tail %q", m.Title, m.Body[len(m.Body)-40:])
 	}
 }
+
+func TestComposeNamesTheSource(t *testing.T) {
+	top := []Item{{Title: "Example", URL: "https://d.example.test/1", Price: "9€", Source: "dealabs"}}
+	m := Compose(nil, top, "")
+	if want := "1. dealabs · Example · 9€"; !strings.Contains(m.Body, want) {
+		t.Errorf("body lacks %q:\n%s", want, m.Body)
+	}
+	if want := `1. dealabs · <a href="https://d.example.test/1">Example</a> · 9€`; !strings.Contains(m.HTML, want) {
+		t.Errorf("HTML lacks %q:\n%s", want, m.HTML)
+	}
+}
+
+func TestComposeSizeCapCountsTheSourceLabel(t *testing.T) {
+	var top []Item
+	for i := 0; i < 60; i++ {
+		top = append(top, Item{Title: strings.Repeat("x", 80), URL: "https://d.example.test/1", Source: "preisjaeger"})
+	}
+	m := Compose(nil, top, "")
+	if len(m.Body) > MaxBytes || len(m.HTML) > MaxBytes {
+		t.Errorf("sizes body=%d html=%d, max %d", len(m.Body), len(m.HTML), MaxBytes)
+	}
+}

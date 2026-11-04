@@ -7,9 +7,18 @@ Documentation: <https://morrismorrison.github.io/dealsieve/>
 A small, self-hosted filter for deal feeds. dealsieve reads a deal community's feeds, throws away
 the noise, and shows what's left on a simple web page, with optional push notifications.
 
-Its first (and so far only) source is [mydealz](https://www.mydealz.de). dealsieve is not affiliated
-with it; it reads the public RSS feeds, links every deal back to the original post, and is meant for
-personal use. Please respect the site's terms and keep polling intervals reasonable.
+Its first source is [mydealz](https://www.mydealz.de); the other Pepper sites are optional extra sources. dealsieve is not affiliated with mydealz or the other Pepper sites; it reads
+the public RSS feeds, links every deal back to the original post, and is meant for personal use.
+Please respect the sites' terms and keep polling intervals reasonable.
+
+## Sources
+
+mydealz is on by default. The other Pepper-network sites with the same RSS format can be turned on
+in Settings: hotukdeals, dealabs, preisjaeger, chollometro and pepper.pl. Each enabled site is polled
+at the same intervals (trending every `DEALSIEVE_POLL_TRENDING`, new deals every
+`DEALSIEVE_POLL_NEW`). Rules, mutes and the watchlist apply across sources; recurrence counts only
+deals from the same source, and each source can have its own minimum temperature. Prices are shown
+as the feed gives them (£, €, zł), with no conversion.
 
 ## Screenshots
 
@@ -97,7 +106,12 @@ are snapshots on the way to a stable 1.0, not long-term-supported versions.
 | `DEALSIEVE_POLL_NEW` | `2m` | Interval for the feed of every new deal (minimum `1m`) |
 | `DEALSIEVE_TELEGRAM_TOKEN` | | Bot token, needed for Telegram channels |
 | `DEALSIEVE_NTFY_TOKEN` | | Access token for a protected ntfy server |
-| `DEALSIEVE_MYDEALZ_URL` | `https://www.mydealz.de` | Feed host (for tests) |
+| `DEALSIEVE_MYDEALZ_URL` | `https://www.mydealz.de` | Feed host (for tests or a mirror) |
+| `DEALSIEVE_HOTUKDEALS_URL` | `https://www.hotukdeals.com` | Feed host (for tests or a mirror) |
+| `DEALSIEVE_DEALABS_URL` | `https://www.dealabs.com` | Feed host (for tests or a mirror) |
+| `DEALSIEVE_PREISJAEGER_URL` | `https://www.preisjaeger.at` | Feed host (for tests or a mirror) |
+| `DEALSIEVE_CHOLLOMETRO_URL` | `https://www.chollometro.com` | Feed host (for tests or a mirror) |
+| `DEALSIEVE_PEPPERPL_URL` | `https://www.pepper.pl` | Feed host (for tests or a mirror) |
 | `DEALSIEVE_PUBLIC_URL` | unset | The address you open dealsieve at, e.g. `https://deals.example.com`. The daily digest links to it. |
 | `DEALSIEVE_JUDGE_URL` | `https://openrouter.ai/api/v1` | Base URL of an OpenAI-compatible chat-completions API for the LLM judge (requests go to `<url>/chat/completions`) |
 | `DEALSIEVE_JUDGE_API_KEY` | | Optional bearer key for the judge's server; never stored, logged or returned |

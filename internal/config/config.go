@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/MorrisMorrison/dealsieve/internal/source/pepper"
 )
 
 const MinPollInterval = time.Minute
@@ -22,7 +24,7 @@ type Env struct {
 	PublicURL     string
 	JudgeURL      string
 	JudgeAPIKey   string
-	MydealzURL    string
+	SourceURLs    map[string]string // site name to feed base URL
 	PollTrending  time.Duration
 	PollNew       time.Duration
 }
@@ -57,9 +59,22 @@ func FromEnv(getenv func(string) string) (Env, error) {
 		TelegramToken: getenv("DEALSIEVE_TELEGRAM_TOKEN"),
 		NtfyToken:     getenv("DEALSIEVE_NTFY_TOKEN"),
 		JudgeAPIKey:   strings.TrimSpace(getenv("DEALSIEVE_JUDGE_API_KEY")),
-		MydealzURL:    or("DEALSIEVE_MYDEALZ_URL", "https://www.mydealz.de"),
 		PollTrending:  poll("DEALSIEVE_POLL_TRENDING", 5*time.Minute),
 		PollNew:       poll("DEALSIEVE_POLL_NEW", 2*time.Minute),
+	}
+	e.SourceURLs = make(map[string]string, len(pepper.Sites()))
+	for _, s := range pepper.Sites() {
+		key := "DEALSIEVE_" + strings.ToUpper(s.Name) + "_URL"
+		v := getenv(key)
+		if v == "" {
+			e.SourceURLs[s.Name] = s.BaseURL
+			continue
+		}
+		if u, err := url.Parse(v); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			errs = append(errs, fmt.Errorf("%s: must be an absolute http(s) URL, got %q", key, v))
+			continue
+		}
+		e.SourceURLs[s.Name] = strings.TrimRight(v, "/")
 	}
 	if v := getenv("DEALSIEVE_PUBLIC_URL"); v != "" {
 		u, err := url.Parse(v)

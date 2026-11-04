@@ -5,7 +5,11 @@ description: What dealsieve is, how a deal travels through the rules, and what e
 
 dealsieve is a small, self-hosted filter for deal feeds. One Go binary polls a source's feeds, stores every deal in SQLite, runs each one through an ordered rule engine that records *why* it passed or was blocked, serves the result on a web page and can send push notifications.
 
-Its first (and so far only) source is [mydealz](https://www.mydealz.de). dealsieve is not affiliated with it: it reads the public RSS feeds, links every deal back to the original post, and is meant for personal use. Please respect the site's terms and keep polling intervals reasonable.
+Its first source is [mydealz](https://www.mydealz.de); the other Pepper sites are optional extra sources. dealsieve is not affiliated with mydealz or the other Pepper sites: it reads the public RSS feeds, links every deal back to the original post, and is meant for personal use. Please respect the sites' terms and keep polling intervals reasonable.
+
+## Sources
+
+mydealz is on by default. More sources, other Pepper-network sites with the same RSS format, can be turned on in Settings: hotukdeals, dealabs, preisjaeger, chollometro and pepper.pl (see [Sources](/dealsieve/reference/configuration/#sources)). Each enabled site is polled for both feeds below at the same intervals. Turning a source off stops polling it and hides its deals. With more than one source on, deals carry a site label and the inbox has a source filter.
 
 ## The feeds
 
@@ -14,7 +18,7 @@ Its first (and so far only) source is [mydealz](https://www.mydealz.de). dealsie
 | `trending` | 5 minutes | Fills the page. Items carry a temperature. |
 | `new` | 2 minutes | Every new deal, matched **only** against the watchlist. Items carry no temperature. |
 
-A deal seen only in `new` appears on the page only if it matches the watchlist. Both intervals are set with environment variables (`DEALSIEVE_POLL_TRENDING`, `DEALSIEVE_POLL_NEW`), with a minimum of one minute.
+With several sources on, each enabled site gets its own `trending` and `new` loop. A deal seen only in `new` appears on the page only if it matches the watchlist. Both intervals are set with environment variables (`DEALSIEVE_POLL_TRENDING`, `DEALSIEVE_POLL_NEW`), with a minimum of one minute.
 
 ## Where settings live
 
@@ -32,7 +36,7 @@ Each deal runs through these rules **in this order**. The first block reason win
 | 4 | Block keyword | The title contains a block keyword. |
 | 5 | Recurring | The same offer was seen the maximum number of times or more inside the recurrence window. Watchlist hits are exempt. |
 | 6 | Like your junk | The deal has the same fingerprint as a deal you marked *Junk*. |
-| 7 | Too cold | Its temperature is below the minimum temperature (or the category's own minimum). Watchlist hits are exempt. |
+| 7 | Too cold | Its temperature is below the minimum temperature (the category's own minimum, else the source's minimum, else the global one). Watchlist hits are exempt. |
 | 8 | Watchlist | Never blocks: marks the deal as a watchlist hit and boosts its score. |
 | 9 | New-only | The deal was only seen in the `new` feed and is not a watchlist hit. |
 
@@ -44,9 +48,9 @@ Keywords (watchlist and `block_keywords`) are matched case-insensitively as a su
 
 ## Recurring pseudo-deals
 
-The worst noise is the same offer pattern posted every few weeks ("flights from 19.99") that looks cheap on price alone. dealsieve gives every deal a **fingerprint**: the merchant (or `-` if missing) plus the title's distinct words, sorted, after removing the temperature prefix, prices and other plain numbers, sizes and counts (`16GB`, `250ml`, `2x`, `120Hz`), punctuation and common German and English stopwords. Model codes that mix letters and digits (`S24`, `RTX5080`, `1000XM5`) stay, so different models from one shop get different fingerprints, while re-posts of the same offer, even at another price or size, share one.
+The worst noise is the same offer pattern posted every few weeks ("flights from 19.99") that looks cheap on price alone. dealsieve gives every deal a **fingerprint**: the merchant (or `-` if missing) plus the title's distinct words, sorted, after removing the temperature prefix, prices and other plain numbers, sizes and counts (`16GB`, `250ml`, `2x`, `120Hz`), punctuation and common German, English, French, Spanish and Polish function words. Recurrence is counted per source, so the same offer on two sites does not count twice; Junk clicks, Hide, the watchlist, mutes, keywords and category minimums apply across all sources. Model codes that mix letters and digits (`S24`, `RTX5080`, `1000XM5`) stay, so different models from one shop get different fingerprints, while re-posts of the same offer, even at another price or size, share one.
 
-The **recurrence count** is the number of *distinct* other deals with the same fingerprint that were first seen *before* this one, inside the recurrence window that ends when this deal was first seen (90 days by default). It only looks back, so a deal that passed stays passed when the same offer is posted again later; only the later re-posts are blocked. With a maximum of 2, an offer is blocked from the third time it shows up, with a reason such as `recurring: seen 3× before in 90 days (last 2026-10-12)`, where the number counts the earlier deals.
+The **recurrence count** is the number of *distinct* other deals from the *same source* with the same fingerprint that were first seen *before* this one, inside the recurrence window that ends when this deal was first seen (90 days by default). It only looks back, so a deal that passed stays passed when the same offer is posted again later; only the later re-posts are blocked. With a maximum of 2, an offer is blocked from the third time it shows up, with a reason such as `recurring: seen 3× before in 90 days (last 2026-10-12)`, where the number counts the earlier deals.
 
 ## The watchlist
 
