@@ -7,9 +7,9 @@ Documentation: <https://morrismorrison.github.io/dealsieve/>
 A small, self-hosted filter for deal feeds. dealsieve reads a deal community's feeds, throws away
 the noise, and shows what's left on a simple web page, with optional push notifications.
 
-Its first source is [mydealz](https://www.mydealz.de). dealsieve is not affiliated with it; it reads
+Its first source is [mydealz](https://www.mydealz.de); the other Pepper sites are optional extra sources. dealsieve is not affiliated with mydealz or the other Pepper sites; it reads
 the public RSS feeds, links every deal back to the original post, and is meant for personal use.
-Please respect the site's terms and keep polling intervals reasonable.
+Please respect the sites' terms and keep polling intervals reasonable.
 
 ## Sources
 

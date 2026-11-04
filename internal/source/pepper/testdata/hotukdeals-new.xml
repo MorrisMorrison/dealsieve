@@ -16,5 +16,11 @@
 <title><![CDATA[Example Scented Candle Pack]]></title>
 <link>https://www.hotukdeals.com/deals/example-scented-candle-pack-5000004</link>
 </item>
+<item>
+<category><![CDATA[Food &amp; Drink]]></category>
+<pepper:merchant name="Example &amp;amp; Partners" price="£3"/>
+<title><![CDATA[Example Tea &amp; Biscuits]]></title>
+<link>https://www.hotukdeals.com/deals/example-tea-and-biscuits-5000005</link>
+</item>
 </channel>
 </rss>

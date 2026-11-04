@@ -196,14 +196,26 @@ func TestParseEverySite(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.file, func(t *testing.T) {
 			deals, itemErrs := parseFile(t, c.file, c.site)
-			if len(itemErrs) != 0 || len(deals) != 2 {
-				t.Fatalf("got %d deals, item errors %v; want 2 and none", len(deals), itemErrs)
+			want := 2
+			if c.file == "hotukdeals-new.xml" {
+				want = 3
+			}
+			if len(itemErrs) != 0 || len(deals) != want {
+				t.Fatalf("got %d deals, item errors %v; want %d and none", len(deals), itemErrs, want)
 			}
 			d := deals[0]
 			if d.ID != c.firstID || d.Source != c.site || d.Price != c.firstPrice || (d.Temperature != nil) != c.temp {
 				t.Errorf("deal 0 = %+v (temperature %v)", d, d.Temperature)
 			}
 		})
+	}
+}
+
+func TestParseDecodesDoubleEscapedEntities(t *testing.T) {
+	deals, _ := parseFile(t, "hotukdeals-new.xml", "hotukdeals")
+	d := deals[2]
+	if d.Merchant != "Example & Partners" || d.Title != "Example Tea & Biscuits" || d.Category != "Food & Drink" {
+		t.Errorf("merchant %q, title %q, category %q", d.Merchant, d.Title, d.Category)
 	}
 }
 

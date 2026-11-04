@@ -17,7 +17,7 @@ dealsieve is a small self-hosted filter for deal feeds. One Go binary polls a so
 | `internal/fingerprint/` | `CleanTitle` + `Key`: merchant plus sorted distinct title words without plain numbers or sizes (`16gb`, `2x`); model codes like `s24` stay. Re-posts of the same offer share a key |
 | `internal/rules/` | The rule engine: `Evaluate(Deal, Facts) Result` — pure, no I/O |
 | `internal/pipeline/` | Ingest (store → evaluate → save verdict → notify), `RecomputeRecent` after a user action, `Prune`; serialised by one mutex |
-| `internal/poller/` | One loop per feed with its own interval, backoff on failures (capped at 30 min), per-feed status for the page |
+| `internal/poller/` | One loop per source and feed with its own interval, backoff on failures (capped at 30 min), per-feed status for the page |
 | `internal/digest/` | Daily digest: `Due`, `Compose`, and the `Runner` that sends due digests every minute outside the pipeline lock; per-channel window ends in `digest_state`, deals already listed per channel in `digest_sent` |
 | `internal/notify/` | `Notifier` interface, ntfy and Telegram implementations |
 | `internal/store/` | SQLite (modernc, pure Go): deals, temperature snapshots, verdicts, actions, notification bookkeeping; numbered migrations in `migrations/` tracked by `PRAGMA user_version` |
@@ -45,7 +45,7 @@ Docs site (in `docs-site/`): `npm ci`, `npm run dev` (preview), `npm run build` 
 Running it needs nothing but a data dir (it writes `./data/dealsieve.db`, git-ignored); configure it on the Settings page.
 
 ## How tests isolate the outside world
-- **Nothing in the tests talks to mydealz, ntfy or Telegram.** Sources and notifiers take a base URL and an `*http.Client`; tests point them at `httptest.Server`s. The e2e test serves the mydealz fixtures (`trending.xml`, `new.xml`) as `/rss/trending` and `/rss/alles` and the hotukdeals ones as `/rss/trending` and `/rss/new` from a second server, and sets `DEALSIEVE_MYDEALZ_URL` and `DEALSIEVE_HOTUKDEALS_URL` to them.
+- **Nothing in the tests talks to any Pepper site, ntfy or Telegram.** Sources and notifiers take a base URL and an `*http.Client`; tests point them at `httptest.Server`s. The e2e test serves the mydealz fixtures (`trending.xml`, `new.xml`) as `/rss/trending` and `/rss/alles` and the hotukdeals ones as `/rss/trending` and `/rss/new` from a second server, and sets `DEALSIEVE_MYDEALZ_URL` and `DEALSIEVE_HOTUKDEALS_URL` to them.
 - **Store tests use a real SQLite file** in `t.TempDir()`, never a shared database.
 - **Time is injected** (`Now func() time.Time` on the pipeline and API server); tests pass a fixed clock instead of sleeping.
 - **Fixtures are made up** (`Example Shop`, `Example Air`, `static.example.test`). Never copy real feed content into the repo. If the feed format changes, change the fixture by hand to match.

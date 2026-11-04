@@ -120,13 +120,14 @@ export function renderDetail(panel, deal, { onAction, onUndo, onBack, showSource
   panel.replaceChildren(node);
 }
 
-export function renderStatus(node, feeds) {
+// showSource prefixes a stale feed with its source label; only useful with several sources on.
+export function renderStatus(node, feeds, { showSource = false } = {}) {
   const stale = feeds.filter((f) => f.stale);
   node.classList.toggle('bad', stale.length > 0);
   node.classList.toggle('ok', stale.length === 0);
   if (stale.length > 0) {
     node.textContent = stale
-      .map((f) => `${f.label ? `${f.label} ` : ''}${f.feed} feed stale: last update ${ago(f.last_success)}${f.last_error ? ` (${f.last_error})` : ''}`)
+      .map((f) => `${showSource && f.label ? `${f.label} ` : ''}${f.feed} feed stale: last update ${ago(f.last_success)}${f.last_error ? ` (${f.last_error})` : ''}`)
       .join(' · ');
     return;
   }

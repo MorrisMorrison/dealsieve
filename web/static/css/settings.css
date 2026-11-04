@@ -106,7 +106,7 @@ body.settings-page .add-channel { align-content: center; gap: 4px; }
 body.settings-page #page-error { position: sticky; top: 8px; z-index: 25; box-shadow: var(--shadow); border: 1px solid var(--warn); }
 
 body.settings-page .sites { display: grid; gap: 8px; }
-body.settings-page .site { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+body.settings-page .site { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; }
 body.settings-page .site-name { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 body.settings-page .site-min { display: inline-flex; align-items: center; gap: 4px; }
-body.settings-page .site .field-error { flex-basis: 100%; }
+body.settings-page .site .field-error { grid-column: 1 / -1; }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -267,12 +268,21 @@ func TestReenabledSourceIgnoresOldLoop(t *testing.T) {
 }
 
 func TestSetSourcesAfterRunEnded(t *testing.T) {
-	p := New(map[string]source.Fetcher{"mydealz": &fakeFetcher{}}, nopIngester{},
+	var calls atomic.Int32
+	fetch := fetcherFunc(func(context.Context, source.Feed) ([]source.Deal, error) { calls.Add(1); return nil, nil })
+	p := New(map[string]source.Fetcher{"mydealz": fetch}, nopIngester{},
 		map[source.Feed]time.Duration{source.FeedNew: time.Minute}, slog.New(slog.DiscardHandler))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	p.Run(ctx)
 	p.SetSources([]string{"mydealz"}) // must not start a loop nobody waits for
+	time.Sleep(100 * time.Millisecond)
+	p.mu.Lock()
+	n := len(p.running)
+	p.mu.Unlock()
+	if n != 0 || calls.Load() != 0 {
+		t.Errorf("running loops = %d, fetches = %d; want none", n, calls.Load())
+	}
 }
 
 func TestRunStopsWithContext(t *testing.T) {

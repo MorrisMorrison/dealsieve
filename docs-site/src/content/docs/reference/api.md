@@ -25,7 +25,7 @@ The web page talks to the backend only through this JSON API. Errors are returne
 
 ## `GET /api/deals`
 
-Returns up to 200 deals, sorted by score and then by first-seen time. Each deal carries its verdict, the reasons, the current temperature and the temperature history (used for the sparkline). Add `source=<name>` (`mydealz`, `hotukdeals`, `dealabs`, `preisjaeger`, `chollometro` or `pepperpl`) to list one source only; an unknown `view` or `source` returns `400`. Every deal carries `source` and `source_label`.
+Returns up to 200 deals, sorted by score and then by first-seen time. Each deal carries its verdict, the reasons, the current temperature and the temperature history (used for the sparkline). Add `source=<name>` (`mydealz`, `hotukdeals`, `dealabs`, `preisjaeger`, `chollometro` or `pepperpl`) to list one source only; an unknown `view` or an unknown or disabled `source` returns `400`. Every deal carries `source` and `source_label`.
 
 The response also contains `counts` next to `deals`, with the number of deals per view (`passed`, `watchlist`, `blocked`) over the same window, whichever view you listed.
 

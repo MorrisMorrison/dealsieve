@@ -5,7 +5,7 @@ description: What dealsieve is, how a deal travels through the rules, and what e
 
 dealsieve is a small, self-hosted filter for deal feeds. One Go binary polls a source's feeds, stores every deal in SQLite, runs each one through an ordered rule engine that records *why* it passed or was blocked, serves the result on a web page and can send push notifications.
 
-Its first source is [mydealz](https://www.mydealz.de). dealsieve is not affiliated with it: it reads the public RSS feeds, links every deal back to the original post, and is meant for personal use. Please respect the site's terms and keep polling intervals reasonable.
+Its first source is [mydealz](https://www.mydealz.de); the other Pepper sites are optional extra sources. dealsieve is not affiliated with mydealz or the other Pepper sites: it reads the public RSS feeds, links every deal back to the original post, and is meant for personal use. Please respect the sites' terms and keep polling intervals reasonable.
 
 ## Sources
 

@@ -55,6 +55,9 @@ func (p *Pipeline) Ingest(ctx context.Context, feed source.Feed, deals []source.
 		return err
 	}
 	for _, d := range deals {
+		if p.sources != nil && !p.sources[d.Source] {
+			continue // turned off between ApplySettings and SetSources
+		}
 		clean, key := fingerprint.Of(d.Merchant, d.Title)
 		rec, err := p.Store.UpsertDeal(ctx, d, feed, clean, key, now)
 		if err != nil {

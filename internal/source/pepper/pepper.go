@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -110,7 +111,8 @@ func toDeal(it item, site string) (source.Deal, error) {
 	if m == nil {
 		return source.Deal{}, fmt.Errorf("no thread id in link %q", link)
 	}
-	title := strings.TrimSpace(it.Title)
+	// Pepper double-escapes entities in attributes and CDATA is never decoded.
+	title := html.UnescapeString(strings.TrimSpace(it.Title))
 	var temperature *int
 	if tm := temperaturePrefix.FindStringSubmatch(title); tm != nil {
 		t, err := strconv.Atoi(tm[1])
@@ -128,9 +130,9 @@ func toDeal(it item, site string) (source.Deal, error) {
 		Source:      site,
 		URL:         link,
 		Title:       title,
-		Merchant:    strings.TrimSpace(it.Merchant.Name),
+		Merchant:    html.UnescapeString(strings.TrimSpace(it.Merchant.Name)),
 		Price:       strings.TrimSpace(it.Merchant.Price),
-		Category:    strings.TrimSpace(it.Category),
+		Category:    html.UnescapeString(strings.TrimSpace(it.Category)),
 		ImageURL:    validImageURL(it.Media.URL),
 		Temperature: temperature,
 	}, nil

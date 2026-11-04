@@ -32,6 +32,14 @@ async function load() {
     show();
   } catch (err) {
     if (seq !== loadSeq) return;
+    if (err.status === 400 && state.source) {
+      // The chosen source was turned off since the last status; start again from all sources.
+      state.source = '';
+      sourceFilter.value = '';
+      refreshStatus(); // rebuilds the filter if the sources changed
+      load();
+      return;
+    }
     renderError(list, err);
     return;
   }
@@ -117,13 +125,19 @@ async function undo(kind, deal) {
   }
 }
 
+let filterKey = null;
+
 // Fills the source filter; returns true when the chosen source is gone and was reset.
 function updateSourceFilter(sources) {
   state.sources = sources;
   const gone = state.source !== '' && (sources.length < 2 || !sources.some((s) => s.name === state.source));
   if (gone) state.source = '';
   sourceFilter.hidden = sources.length < 2;
-  sourceFilter.replaceChildren(new Option('All sources', ''), ...sources.map((s) => new Option(s.label, s.name)));
+  const key = JSON.stringify(sources.map((s) => [s.name, s.label]));
+  if (key !== filterKey) { // rebuilding would close an open dropdown
+    filterKey = key;
+    sourceFilter.replaceChildren(new Option('All sources', ''), ...sources.map((s) => new Option(s.label, s.name)));
+  }
   sourceFilter.value = state.source;
   return gone;
 }
@@ -131,7 +145,7 @@ function updateSourceFilter(sources) {
 async function refreshStatus() {
   try {
     const { feeds, sources } = await api.getStatus();
-    renderStatus(document.getElementById('status'), feeds);
+    renderStatus(document.getElementById('status'), feeds, { showSource: sources.length > 1 });
     const before = multiSource();
     if (updateSourceFilter(sources)) load();
     else if (before !== multiSource()) show();

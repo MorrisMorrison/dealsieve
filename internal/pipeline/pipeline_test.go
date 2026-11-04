@@ -419,3 +419,22 @@ func TestPendingNotificationOfATurnedOffSourceIsNotRetried(t *testing.T) {
 		t.Errorf("attempts = %d, want still 1", attempts)
 	}
 }
+
+func TestIngestSkipsDealsOfTurnedOffSources(t *testing.T) {
+	h := newHarness(t, settings.When{MinTemperature: 100})
+	h.p.ApplySettings(enabled("mydealz"))
+	h.p.Notify = []settings.NotifyRule{{When: settings.When{MinTemperature: 100}, Channels: []string{"push"}}}
+	h.p.Notifiers = map[string]notify.Notifier{"push": h.push}
+	h.ingest(t, source.FeedTrending,
+		dealFrom("hotukdeals", "1", "Example Laptop", intp(150)),
+		deal("2", "Example Phone", intp(150)))
+	if _, err := h.st.GetDeal(ctx, "hotukdeals:1"); err == nil {
+		t.Error("deal of a turned-off source was stored")
+	}
+	if _, err := h.st.GetDeal(ctx, "mydealz:2"); err != nil {
+		t.Errorf("deal of an enabled source: %v", err)
+	}
+	if n := h.push.count(); n != 1 {
+		t.Errorf("sent %d, want 1", n)
+	}
+}
