@@ -187,7 +187,9 @@ func (s *Service) Dismiss(ctx context.Context, kind, value string) error {
 }
 
 // commit stores next as a new version (if anything changed), applies it and
-// re-checks recent deals. Callers hold s.mu.
+// re-checks recent deals. Callers hold s.mu. The change is saved and applied
+// even when the error is a re-check error; the returned Result then reports
+// the new version with Changed set and Rechecked zero.
 func (s *Service) commit(ctx context.Context, next settings.Settings, summary []string) (Result, error) {
 	if len(summary) == 0 {
 		return Result{Snapshot: s.cur}, nil
@@ -201,7 +203,7 @@ func (s *Service) commit(ctx context.Context, next settings.Settings, summary []
 	// The change is saved; finish re-checking even if the client goes away.
 	n, err := s.Apply.RecomputeRecent(context.WithoutCancel(ctx))
 	if err != nil {
-		return Result{}, fmt.Errorf("re-check deals: %w", err)
+		return Result{Snapshot: s.cur, Changed: true}, fmt.Errorf("re-check deals: %w", err)
 	}
 	return Result{Snapshot: s.cur, Rechecked: n, Changed: true}, nil
 }

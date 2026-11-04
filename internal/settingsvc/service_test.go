@@ -151,3 +151,40 @@ func TestMuteAndSuggestions(t *testing.T) {
 		t.Error("unknown dismiss kind accepted")
 	}
 }
+
+type failingApplier struct{ fakeApplier }
+
+func (f *failingApplier) RecomputeRecent(context.Context) (int, error) {
+	return 0, errors.New("pipeline down")
+}
+
+func TestRecomputeErrorKeepsSavedChange(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "s.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	now := time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)
+	ap := &failingApplier{}
+	svc := &Service{Store: st, Apply: ap, Now: func() time.Time { return now }}
+	if err := svc.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	v1 := svc.Current().Version
+	next := svc.Current().Settings
+	next.Rules.MinTemperature = 80
+	res, err := svc.Save(ctx, v1, next)
+	if err == nil {
+		t.Fatal("expected re-check error")
+	}
+	if !res.Changed || res.Version == v1 || res.Rechecked != 0 {
+		t.Errorf("result = %+v", res)
+	}
+	if got := svc.Current().Version; got != res.Version {
+		t.Errorf("current version %d, want %d", got, res.Version)
+	}
+	hist, err := svc.History(ctx, 1)
+	if err != nil || len(hist) != 1 || hist[0].Version != res.Version {
+		t.Errorf("history = %+v, %v", hist, err)
+	}
+}
