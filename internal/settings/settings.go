@@ -77,6 +77,12 @@ func ParseClock(s string) (hour, minute int, ok bool) {
 	if len(s) != 5 || s[2] != ':' {
 		return 0, 0, false
 	}
+	// Atoi would also take a sign, so check for digits first.
+	for _, i := range [...]int{0, 1, 3, 4} {
+		if s[i] < '0' || s[i] > '9' {
+			return 0, 0, false
+		}
+	}
 	h, err1 := strconv.Atoi(s[:2])
 	m, err2 := strconv.Atoi(s[3:])
 	if err1 != nil || err2 != nil || h < 0 || h > 23 || m < 0 || m > 59 {

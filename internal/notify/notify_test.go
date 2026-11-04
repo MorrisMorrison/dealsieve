@@ -93,14 +93,14 @@ func TestNtfyErrorStatus(t *testing.T) {
 
 type telegramCall struct {
 	path    string
-	payload map[string]string
+	payload map[string]any
 }
 
 func telegramServer(t *testing.T, photoStatus int) (*httptest.Server, *[]telegramCall) {
 	t.Helper()
 	var calls []telegramCall
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var p map[string]string
+		var p map[string]any
 		json.NewDecoder(r.Body).Decode(&p)
 		calls = append(calls, telegramCall{r.URL.Path, p})
 		if photoStatus != 0 && strings.HasSuffix(r.URL.Path, "/sendPhoto") {
@@ -192,6 +192,10 @@ func TestTelegramSendsHTML(t *testing.T) {
 	c := (*calls)[0]
 	if c.path != "/botTOKEN/sendMessage" || c.payload["text"] != html || c.payload["parse_mode"] != "HTML" {
 		t.Errorf("call = %+v", c)
+	}
+	// A digest is a list of links: Telegram must not unfurl the first one.
+	if lp, _ := c.payload["link_preview_options"].(map[string]any); lp["is_disabled"] != true {
+		t.Errorf("link_preview_options = %v", c.payload["link_preview_options"])
 	}
 }
 

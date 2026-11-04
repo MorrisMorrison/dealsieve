@@ -31,7 +31,9 @@ type Item struct {
 }
 
 // Due reports whether a channel's digest should go out at now: the local
-// send time has passed today and the channel's last window ended before it.
+// send time has passed today and the channel's last window did not end on
+// today's local date. Comparing dates, not the send time, keeps a digest that
+// already went out from being sent again after the time or zone is changed.
 func Due(now time.Time, d settings.Digest, last time.Time, hasLast bool) bool {
 	h, m, ok := settings.ParseClock(d.Time)
 	if !ok {
@@ -44,26 +46,31 @@ func Due(now time.Time, d settings.Digest, last time.Time, hasLast bool) bool {
 	if local.Before(sendAt) {
 		return false
 	}
-	return !hasLast || last.Before(sendAt)
+	return !hasLast || last.In(loc).Format(time.DateOnly) != local.Format(time.DateOnly)
 }
 
 // Compose builds one digest message. Each deal's judge opinion, if any, goes on
 // its own line under the deal. Lines from the end of the top list are dropped
-// (and counted in "… and K more") until both versions fit MaxBytes.
+// (and counted in "… and K more") until both versions fit MaxBytes; once the
+// top list is empty, watchlist hits are trimmed from the end the same way.
 func Compose(hits, top []Item, publicURL string) notify.Message {
 	total := len(hits) + len(top)
 	title := fmt.Sprintf("dealsieve · %d new deal", total)
 	if total != 1 {
 		title += "s"
 	}
-	shown, more := top, 0
+	shownHits, shown, more := hits, top, 0
 	for {
-		body, htm := render(title, hits, shown, more, publicURL)
-		if (len(body) <= MaxBytes && len(htm) <= MaxBytes) || len(shown) == 0 {
-			m := notify.Message{Title: title, Body: body, HTML: htm, ClickURL: publicURL}
-			return m
+		body, htm := render(title, shownHits, shown, more, publicURL)
+		if (len(body) <= MaxBytes && len(htm) <= MaxBytes) || len(shownHits)+len(shown) == 0 {
+			return notify.Message{Title: title, Body: body, HTML: htm, ClickURL: publicURL}
 		}
-		shown, more = shown[:len(shown)-1], more+1
+		if len(shown) > 0 {
+			shown = shown[:len(shown)-1]
+		} else {
+			shownHits = shownHits[:len(shownHits)-1]
+		}
+		more++
 	}
 }
 
@@ -78,7 +85,7 @@ func render(title string, hits, top []Item, more int, publicURL string) (plain, 
 			h = append(h, line("", it, true))
 		}
 	}
-	if len(top) > 0 || more > 0 {
+	if len(top) > 0 {
 		if len(p) > 0 {
 			p, h = append(p, ""), append(h, "")
 		}
@@ -89,10 +96,13 @@ func render(title string, hits, top []Item, more int, publicURL string) (plain, 
 			p = append(p, line(n, it, false))
 			h = append(h, line(n, it, true))
 		}
-		if more > 0 {
-			tail := fmt.Sprintf("… and %d more", more)
-			p, h = append(p, tail), append(h, html.EscapeString(tail))
+	}
+	if more > 0 {
+		tail := fmt.Sprintf("… and %d more", more)
+		if len(top) == 0 && len(p) > 0 {
+			p, h = append(p, ""), append(h, "")
 		}
+		p, h = append(p, tail), append(h, html.EscapeString(tail))
 	}
 	htmlLines := append([]string{"<b>" + html.EscapeString(title) + "</b>", ""}, h...)
 	if publicURL != "" {
@@ -130,7 +140,10 @@ func maybeEscape(s string, asHTML bool) string {
 	return s
 }
 
+// cut flattens any whitespace run (line breaks, tabs) to one space, so a deal
+// stays on one line, then shortens the title.
 func cut(s string) string {
+	s = strings.Join(strings.Fields(s), " ")
 	r := []rune(s)
 	if len(r) <= maxTitle {
 		return s

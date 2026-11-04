@@ -20,14 +20,18 @@ type Telegram struct {
 
 func (t *Telegram) Send(ctx context.Context, m Message) error {
 	if m.HTML != "" {
-		return t.call(ctx, "sendMessage", map[string]string{"chat_id": t.ChatID, "text": m.HTML, "parse_mode": "HTML"})
+		// A digest is a list of links; Telegram would unfurl the first one.
+		return t.call(ctx, "sendMessage", map[string]any{
+			"chat_id": t.ChatID, "text": m.HTML, "parse_mode": "HTML",
+			"link_preview_options": map[string]any{"is_disabled": true},
+		})
 	}
 	text := m.Title + "\n" + m.Body
 	if m.ClickURL != "" {
 		text += "\n" + m.ClickURL
 	}
 	if m.ImageURL != "" {
-		err := t.call(ctx, "sendPhoto", map[string]string{"chat_id": t.ChatID, "photo": m.ImageURL, "caption": truncate(text, 1024)})
+		err := t.call(ctx, "sendPhoto", map[string]any{"chat_id": t.ChatID, "photo": m.ImageURL, "caption": truncate(text, 1024)})
 		if err == nil {
 			return nil
 		}
@@ -39,10 +43,10 @@ func (t *Telegram) Send(ctx context.Context, m Message) error {
 			return err
 		}
 	}
-	return t.call(ctx, "sendMessage", map[string]string{"chat_id": t.ChatID, "text": truncate(text, 4096)})
+	return t.call(ctx, "sendMessage", map[string]any{"chat_id": t.ChatID, "text": truncate(text, 4096)})
 }
 
-func (t *Telegram) call(ctx context.Context, method string, payload map[string]string) error {
+func (t *Telegram) call(ctx context.Context, method string, payload map[string]any) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
