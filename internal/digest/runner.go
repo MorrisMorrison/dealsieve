@@ -123,7 +123,8 @@ func (r *Runner) SendTest(ctx context.Context) []TestResult {
 	s := r.Settings()
 	now := r.Now()
 	senders := r.notifiers(s)
-	warnings := settings.Warnings(s, r.Env.TelegramToken != "")
+	// Only blocking problems gate a send; the ntfy token binding is a caveat.
+	warnings := settings.Warnings(s, r.Env.TelegramToken != "", settings.NtfyBinding{})
 	var out []TestResult
 	for _, ch := range s.Digest.Channels {
 		res := TestResult{Channel: ch}

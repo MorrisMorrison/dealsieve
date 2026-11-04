@@ -111,6 +111,7 @@ are snapshots on the way to a stable 1.0, not long-term-supported versions.
 | `DEALSIEVE_POLL_NEW` | `2m` | Interval for the feed of every new deal (minimum `1m`) |
 | `DEALSIEVE_TELEGRAM_TOKEN` | | Bot token, needed for Telegram channels |
 | `DEALSIEVE_NTFY_TOKEN` | | Access token for a protected ntfy server |
+| `DEALSIEVE_NTFY_TOKEN_HOST` | | Host (optionally `host:port`, no scheme) the ntfy token may be sent to; other ntfy servers get no token. Unset: the token goes to every ntfy server |
 | `DEALSIEVE_MYDEALZ_URL` | `https://www.mydealz.de` | Feed host (for tests or a mirror) |
 | `DEALSIEVE_HOTUKDEALS_URL` | `https://www.hotukdeals.com` | Feed host (for tests or a mirror) |
 | `DEALSIEVE_DEALABS_URL` | `https://www.dealabs.com` | Feed host (for tests or a mirror) |
@@ -125,10 +126,12 @@ Environment variables are for infrastructure and secrets and apply on restart; i
 rejected at startup with a list of problems. Everything else (watchlist, mutes, keywords,
 temperatures, recurrence, notification channels and rules) lives on the Settings page.
 
-**Security.** The page has no login of its own. `DEALSIEVE_NTFY_TOKEN` is sent to the server of every
-ntfy channel (and by Send test), so anyone who can reach the page can point a channel at a server of
-their own and receive it. Keep dealsieve on a private network or behind an authenticating proxy, and use
-an ntfy token scoped to the dealsieve topic.
+**Security.** The page has no login of its own. Keep dealsieve on a private network or behind an
+authenticating proxy, and use an ntfy token scoped to the dealsieve topic. Set `DEALSIEVE_NTFY_TOKEN_HOST`
+to the host of your ntfy server (e.g. `ntfy.example.com`): the token is then attached only to channels
+for that host, including by Send test, so nobody can point a channel at their own server and receive it.
+Without it, `DEALSIEVE_NTFY_TOKEN` is sent to every ntfy channel, and dealsieve logs a warning at startup
+and on the Settings page.
 
 ## Development
 

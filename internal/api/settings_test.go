@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -122,6 +123,27 @@ func TestTestChannel(t *testing.T) {
 	}
 	if resp, _ := h.do(t, "POST", "/api/settings/test", `{"channel":{"type":"ntfy"}}`); resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Errorf("invalid channel = %d", resp.StatusCode)
+	}
+}
+
+func TestTestChannelTokenOnlyToBoundHost(t *testing.T) {
+	h := newHarness(t)
+	var authBound, authOther string
+	bound := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { authBound = r.Header.Get("Authorization") }))
+	defer bound.Close()
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { authOther = r.Header.Get("Authorization") }))
+	defer other.Close()
+	bu, _ := url.Parse(bound.URL)
+	h.api.Env.NtfyToken, h.api.Env.NtfyTokenHost = "secret", bu.Host
+
+	for _, u := range []string{bound.URL, other.URL} {
+		resp, body := h.do(t, "POST", "/api/settings/test", fmt.Sprintf(`{"channel":{"type":"ntfy","url":%q,"topic":"deals"}}`, u))
+		if resp.StatusCode != 200 || !strings.Contains(string(body), `"ok":true`) {
+			t.Fatalf("test send %d: %s", resp.StatusCode, body)
+		}
+	}
+	if authBound != "Bearer secret" || authOther != "" {
+		t.Errorf("bound got %q, other got %q", authBound, authOther)
 	}
 }
 

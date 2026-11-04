@@ -143,12 +143,34 @@ func TestValidate(t *testing.T) {
 
 func TestWarnings(t *testing.T) {
 	s := valid()
-	if w := Warnings(s, true); len(w) != 0 {
+	if w := Warnings(s, true, NtfyBinding{}); len(w) != 0 {
 		t.Errorf("with token: %v", w)
 	}
-	w := Warnings(s, false)
+	w := Warnings(s, false, NtfyBinding{})
 	if len(w) != 1 || !strings.Contains(w["tg"], "DEALSIEVE_TELEGRAM_TOKEN") {
 		t.Errorf("without token: %v", w)
+	}
+}
+
+func TestNtfyWarnings(t *testing.T) {
+	s := valid()
+	// A token without a host goes to every ntfy server.
+	w := Warnings(s, true, NtfyBinding{TokenSet: true})
+	if len(w) != 1 || !strings.Contains(w["phone"], "DEALSIEVE_NTFY_TOKEN_HOST") {
+		t.Errorf("token, no host: %v", w)
+	}
+	// The host matches this channel: no warning.
+	if w := Warnings(s, true, NtfyBinding{TokenSet: true, Host: "NTFY.example.com"}); len(w) != 0 {
+		t.Errorf("matching host: %v", w)
+	}
+	// The host is another server: the token isn't sent here.
+	w = Warnings(s, true, NtfyBinding{TokenSet: true, Host: "other.example.com"})
+	if len(w) != 1 || !strings.Contains(w["phone"], "isn't sent to this server") {
+		t.Errorf("other host: %v", w)
+	}
+	// No token: nothing to warn about.
+	if w := Warnings(s, true, NtfyBinding{Host: "other.example.com"}); len(w) != 0 {
+		t.Errorf("no token: %v", w)
 	}
 }
 

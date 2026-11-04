@@ -64,6 +64,8 @@ Channels and notify rules; see [Notifications](/dealsieve/guide/notifications/) 
 | Telegram chat ID | Required. |
 | Notify rule | Either "a watchlist deal passes" or "a deal reaches N°" with N above 0; at least one channel; every channel must exist. |
 
+With `DEALSIEVE_NTFY_TOKEN` set, an ntfy channel also gets a warning when `DEALSIEVE_NTFY_TOKEN_HOST` is unset (the token goes to every ntfy server) or names another server (the token isn't sent to this one). Sends are not blocked by it.
+
 A Telegram channel while `DEALSIEVE_TELEGRAM_TOKEN` is unset is not an error: the page shows a warning on the channel, and sends fail (logged and retried like any other failure).
 
 ### Daily digest
@@ -119,6 +121,7 @@ Every save is stored as a version with a summary of what changed (for example `A
 | `DEALSIEVE_POLL_NEW` | `2m` | Interval for the feed of every new deal (watchlist matching only). Minimum `1m`. |
 | `DEALSIEVE_TELEGRAM_TOKEN` | | Bot token, needed for Telegram channels |
 | `DEALSIEVE_NTFY_TOKEN` | | Access token for a protected ntfy server |
+| `DEALSIEVE_NTFY_TOKEN_HOST` | | Host (optionally `host:port`, no scheme) the ntfy token may be sent to; other ntfy servers get no token. Unset: the token goes to every ntfy server |
 | `DEALSIEVE_MYDEALZ_URL` | `https://www.mydealz.de` | Feed host (for tests or a mirror) |
 | `DEALSIEVE_HOTUKDEALS_URL` | `https://www.hotukdeals.com` | Feed host (for tests or a mirror) |
 | `DEALSIEVE_DEALABS_URL` | `https://www.dealabs.com` | Feed host (for tests or a mirror) |
