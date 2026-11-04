@@ -96,6 +96,20 @@ function numberInput(value, onInput, { min, label, width, pred } = {}) {
     on: {
       input: (e) => {
         if (pred) clearErrors(pred, input);
+        input.nextError?.remove();
+        input.nextError = null;
+        // An empty or non-integer field would become 0 or a decimal; keep the
+        // last good value in the draft and block saving until it is fixed.
+        const v = input.validity;
+        if (e.target.value === '' || v.badInput || v.stepMismatch) {
+          input.dataset.bad = '1';
+          input.classList.add('invalid');
+          input.nextError = h('div', { className: 'field-error', textContent: 'Enter a whole number' });
+          (input.closest('.override, .field') || input.parentNode).append(input.nextError);
+          return;
+        }
+        delete input.dataset.bad;
+        input.classList.remove('invalid');
         onInput(Number(e.target.value));
         updateBar();
       },
@@ -471,6 +485,7 @@ function adopt(doc) {
   st.warnings = doc.warnings || {};
   st.errors = {};
   st.stale = false;
+  hideBanner();
 }
 
 async function onApply(s, applyBtn, dismissBtn) {
@@ -521,6 +536,13 @@ async function onUndo() {
 }
 
 async function onSave() {
+  const bad = $('input[data-bad]');
+  if (bad) {
+    bad.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    bad.focus();
+    toast('Some settings need fixing', { error: true });
+    return;
+  }
   const save = $('#save');
   save.disabled = true;
   hideBanner();

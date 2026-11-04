@@ -34,6 +34,14 @@ test('changeCount counts changed top-level sections and list entries', () => {
   assert.equal(changeCount(base, d), 3);
 });
 
+test('changeCount ignores case-only edits of list entries, like the server summary', () => {
+  const d = clone(base);
+  d.watchlist = ['OLED'];
+  assert.equal(changeCount(base, d), 0);
+  d.rules.block_keywords = ['Foo'];
+  assert.equal(changeCount(base, d), 1);
+});
+
 test('nextChannelName picks a free lowercase name', () => {
   assert.equal(nextChannelName({}, 'ntfy'), 'ntfy');
   assert.equal(nextChannelName({ ntfy: {}, 'ntfy-2': {} }, 'ntfy'), 'ntfy-3');

@@ -20,8 +20,10 @@ export function changeCount(saved, draft) {
     [saved.rules.muted_categories, draft.rules.muted_categories],
     [saved.rules.block_keywords, draft.rules.block_keywords],
   ];
+  // The server compares entries case-insensitively when it summarises a save.
+  const has = (list, x) => list.some((y) => y.toLowerCase() === x.toLowerCase());
   for (const [a, b] of lists) {
-    n += b.filter((x) => !a.includes(x)).length + a.filter((x) => !b.includes(x)).length;
+    n += b.filter((x) => !has(a, x)).length + a.filter((x) => !has(b, x)).length;
   }
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   if (saved.rules.min_temperature !== draft.rules.min_temperature) n++;
