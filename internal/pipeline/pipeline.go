@@ -51,8 +51,8 @@ func (p *Pipeline) Ingest(ctx context.Context, feed source.Feed, deals []source.
 		return err
 	}
 	for _, d := range deals {
-		clean := fingerprint.CleanTitle(d.Title)
-		rec, err := p.Store.UpsertDeal(ctx, d, feed, clean, fingerprint.Key(d.Merchant, clean), now)
+		clean, key := fingerprint.Of(d.Merchant, d.Title)
+		rec, err := p.Store.UpsertDeal(ctx, d, feed, clean, key, now)
 		if err != nil {
 			return fmt.Errorf("store deal %s: %w", d.ID, err)
 		}
@@ -151,7 +151,7 @@ func verdictOf(rec store.DealRecord, res rules.Result, now time.Time) store.Verd
 }
 
 func (p *Pipeline) evaluate(ctx context.Context, rec store.DealRecord, af actionFacts, now time.Time) (rules.Result, error) {
-	n, last, err := p.Store.CountRecurrence(ctx, rec.Fingerprint, rec.ID, now.Add(-p.Engine.Window()))
+	n, last, err := p.Store.CountRecurrence(ctx, rec.Fingerprint, rec.ID, rec.FirstSeen, p.Engine.Window())
 	if err != nil {
 		return rules.Result{}, err
 	}

@@ -6,6 +6,7 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -100,22 +101,100 @@ func TestDealsSeenSince(t *testing.T) {
 
 func TestCountRecurrence(t *testing.T) {
 	s := openTest(t)
-	mustUpsert(t, s, deal("a", nil), source.FeedTrending, "shop|x", t0.Add(-100*24*time.Hour))
-	mustUpsert(t, s, deal("b", nil), source.FeedTrending, "shop|x", t0.Add(-10*24*time.Hour))
-	mustUpsert(t, s, deal("c", nil), source.FeedTrending, "shop|x", t0.Add(-24*time.Hour))
+	day := 24 * time.Hour
+	mustUpsert(t, s, deal("a", nil), source.FeedTrending, "shop|x", t0.Add(-100*day))
+	mustUpsert(t, s, deal("b", nil), source.FeedTrending, "shop|x", t0.Add(-10*day))
+	mustUpsert(t, s, deal("c", nil), source.FeedTrending, "shop|x", t0.Add(-day))
 	mustUpsert(t, s, deal("other", nil), source.FeedTrending, "shop|y", t0)
 	mustUpsert(t, s, deal("me", nil), source.FeedTrending, "shop|x", t0)
+	mustUpsert(t, s, deal("later", nil), source.FeedTrending, "shop|x", t0.Add(day))
 
-	n, last, err := s.CountRecurrence(ctx, "shop|x", "mydealz:me", t0.Add(-90*24*time.Hour))
+	// Only earlier deals count, within the window that ends at this deal.
+	n, last, err := s.CountRecurrence(ctx, "shop|x", "mydealz:me", t0, 90*day)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 2 || !last.Equal(t0.Add(-24*time.Hour)) {
-		t.Errorf("count %d, last %v; want 2 and %v", n, last, t0.Add(-24*time.Hour))
+	if n != 2 || !last.Equal(t0.Add(-day)) {
+		t.Errorf("count %d, last %v; want 2 and %v", n, last, t0.Add(-day))
 	}
-	if n, _, _ := s.CountRecurrence(ctx, "shop|none", "x", t0.Add(-90*24*time.Hour)); n != 0 {
+	// An older deal keeps its count when re-posts arrive after it.
+	if n, _, _ := s.CountRecurrence(ctx, "shop|x", "mydealz:b", t0.Add(-10*day), 90*day); n != 1 {
+		t.Errorf("count for b = %d, want 1 (only a)", n)
+	}
+	if n, _, _ := s.CountRecurrence(ctx, "shop|none", "x", t0, 90*day); n != 0 {
 		t.Errorf("count = %d, want 0", n)
 	}
+}
+
+func TestCountRecurrenceSamePollCountsOnce(t *testing.T) {
+	s := openTest(t)
+	mustUpsert(t, s, deal("1", nil), source.FeedTrending, "shop|x", t0)
+	mustUpsert(t, s, deal("2", nil), source.FeedTrending, "shop|x", t0)
+	n1, _, _ := s.CountRecurrence(ctx, "shop|x", "mydealz:1", t0, time.Hour)
+	n2, _, _ := s.CountRecurrence(ctx, "shop|x", "mydealz:2", t0, time.Hour)
+	if n1+n2 != 1 {
+		t.Errorf("counts %d and %d; want one of them to see the other", n1, n2)
+	}
+}
+
+func TestRekey(t *testing.T) {
+	s := openTest(t)
+	a := deal("a", nil)
+	a.Title = "Galaxy S24"
+	b := deal("b", nil)
+	b.Title = "Galaxy S25"
+	mustUpsert(t, s, a, source.FeedTrending, "shop|galaxy", t0)
+	mustUpsert(t, s, b, source.FeedTrending, "shop|galaxy", t0.Add(time.Hour))
+	junk := map[string]time.Time{
+		"shop|galaxy":     t0.Add(time.Minute), // clicked on a; b came later
+		"shop|galaxy s24": t0,                  // already current: the move above would duplicate it
+		"shop|ssd gb":     t0,                  // no deal has it any more
+	}
+	for v, at := range junk {
+		if _, err := s.AddAction(ctx, ActionJunk, v, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.AddAction(ctx, ActionHide, "mydealz:a", t0); err != nil {
+		t.Fatal(err)
+	}
+	key := func(merchant, title string) (string, string) {
+		return title, strings.ToLower(merchant + "|" + title)
+	}
+	rekeyOld := func(fp string) string { return strings.TrimSuffix(fp, " gb") }
+
+	n, err := s.Rekey(ctx, key, rekeyOld)
+	if err != nil || n != 2 {
+		t.Fatalf("Rekey = %d, %v; want 2 deals changed", n, err)
+	}
+	if rec, _ := s.GetDeal(ctx, "mydealz:a"); rec.Fingerprint != "shop|galaxy s24" || rec.TitleClean != "Galaxy S24" {
+		t.Errorf("deal a = %+v", rec)
+	}
+	if got := junkValues(t, s); !slices.Equal(got, []string{"shop|galaxy s24", "shop|ssd"}) {
+		t.Errorf("junk = %v", got)
+	}
+	if n, err := s.Rekey(ctx, key, rekeyOld); n != 0 || err != nil {
+		t.Errorf("second Rekey = %d, %v; want 0", n, err)
+	}
+	if got := junkValues(t, s); !slices.Equal(got, []string{"shop|galaxy s24", "shop|ssd"}) {
+		t.Errorf("junk after second Rekey = %v", got)
+	}
+}
+
+func junkValues(t *testing.T, s *Store) []string {
+	t.Helper()
+	list, err := s.Actions(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, a := range list {
+		if a.Kind == ActionJunk {
+			out = append(out, a.Value)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 func save(t *testing.T, s *Store, id, decision string, score int, watch bool) {

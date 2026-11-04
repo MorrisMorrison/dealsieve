@@ -44,16 +44,16 @@ Keywords (watchlist and `block_keywords`) are matched case-insensitively as a su
 
 ## Recurring pseudo-deals
 
-The worst noise is the same offer pattern posted every few weeks ("flights from 19.99") that looks cheap on price alone. dealsieve gives every deal a **fingerprint**: the merchant (or `-` if missing) plus the title's distinct words, sorted, after removing the temperature prefix, prices and other numbers, punctuation and common German and English stopwords. Re-posts of the same offer share a fingerprint.
+The worst noise is the same offer pattern posted every few weeks ("flights from 19.99") that looks cheap on price alone. dealsieve gives every deal a **fingerprint**: the merchant (or `-` if missing) plus the title's distinct words, sorted, after removing the temperature prefix, prices and other plain numbers, sizes and counts (`16GB`, `250ml`, `2x`, `120Hz`), punctuation and common German and English stopwords. Model codes that mix letters and digits (`S24`, `RTX5080`, `1000XM5`) stay, so different models from one shop get different fingerprints, while re-posts of the same offer, even at another price or size, share one.
 
-The **recurrence count** is the number of *distinct* other deals with the same fingerprint whose first-seen time falls inside the recurrence window (90 days by default). With a maximum of 2, an offer is blocked from the third time it shows up, with a reason such as `recurring: seen 3× before in 90 days (last 2026-10-12)`, where the number counts the earlier deals.
+The **recurrence count** is the number of *distinct* other deals with the same fingerprint that were first seen *before* this one, inside the recurrence window that ends when this deal was first seen (90 days by default). It only looks back, so a deal that passed stays passed when the same offer is posted again later; only the later re-posts are blocked. With a maximum of 2, an offer is blocked from the third time it shows up, with a reason such as `recurring: seen 3× before in 90 days (last 2026-10-12)`, where the number counts the earlier deals.
 
 ## The watchlist
 
 Watchlist entries are checked against every new deal as soon as it is posted, before it trends. A hit:
 
 - gets a score boost of +1000, so hits sort to the top,
-- is exempt from the recurrence rule and the temperature rule on purpose, because the watchlist is explicit intent and fingerprints drop model numbers,
+- is exempt from the recurrence rule and the temperature rule on purpose, because the watchlist is explicit intent and fingerprints drop numbers such as sizes and storage,
 - is still blocked by hidden, muted category, muted merchant, block keyword and junk.
 
 Hits are listed in their own tab and can trigger [notifications](/dealsieve/guide/notifications/).

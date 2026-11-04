@@ -110,17 +110,138 @@ func (s *Store) DealsSeenSince(ctx context.Context, since time.Time) ([]DealReco
 	return out, rows.Err()
 }
 
-// CountRecurrence counts other deals with the same fingerprint first seen
-// since since, and returns when the latest of them was first seen.
-func (s *Store) CountRecurrence(ctx context.Context, fingerprint, excludeID string, since time.Time) (int, time.Time, error) {
+// CountRecurrence counts the deals with this fingerprint first seen before
+// the deal id (first seen at firstSeen), within window before it, and returns
+// when the latest of them was first seen. Deals first seen in the same poll
+// are ordered by id, so of two identical ones only the second counts the
+// first. Looking only backwards keeps a verdict stable: re-posts that arrive
+// later never turn an earlier deal into a recurring one.
+func (s *Store) CountRecurrence(ctx context.Context, fingerprint, id string, firstSeen time.Time, window time.Duration) (int, time.Time, error) {
 	var n int
 	var last sql.NullInt64
+	at := firstSeen.Unix()
 	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*), MAX(first_seen) FROM deals
-		WHERE fingerprint = ? AND id <> ? AND first_seen >= ?`, fingerprint, excludeID, since.Unix()).Scan(&n, &last)
+		WHERE fingerprint = ? AND first_seen >= ? AND (first_seen < ? OR (first_seen = ? AND id < ?))`,
+		fingerprint, firstSeen.Add(-window).Unix(), at, at, id).Scan(&n, &last)
 	if err != nil || !last.Valid {
 		return n, time.Time{}, err
 	}
 	return n, fromUnix(last.Int64), nil
+}
+
+// Rekey recomputes every deal's cleaned title and fingerprint with key and
+// moves each junk action to a current fingerprint: the new key of the latest
+// deal that had the old key and was seen before the click (the deal the
+// click most likely came from), or, when no stored deal had the old key any
+// more, rekeyOld of the key itself. A moved junk action that would duplicate
+// an existing one is dropped. It returns how many deals changed; with
+// unchanged fingerprint rules it changes nothing.
+func (s *Store) Rekey(ctx context.Context, key func(merchant, title string) (clean, fingerprint string), rekeyOld func(fingerprint string) string) (int, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	type change struct{ id, clean, fp string }
+	var changes []change
+	moved := map[string][]sighting{} // old fingerprint -> its deals' new fingerprints
+	rows, err := tx.QueryContext(ctx, `SELECT id, title, merchant, title_clean, fingerprint, first_seen FROM deals`)
+	if err != nil {
+		return 0, err
+	}
+	for rows.Next() {
+		var id, title, merchant, oldClean, oldFP string
+		var firstSeen int64
+		if err := rows.Scan(&id, &title, &merchant, &oldClean, &oldFP, &firstSeen); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		clean, fp := key(merchant, title)
+		moved[oldFP] = append(moved[oldFP], sighting{firstSeen, fp})
+		if clean != oldClean || fp != oldFP {
+			changes = append(changes, change{id, clean, fp})
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	for _, c := range changes {
+		if _, err := tx.ExecContext(ctx, `UPDATE deals SET title_clean = ?, fingerprint = ? WHERE id = ?`, c.clean, c.fp, c.id); err != nil {
+			return 0, err
+		}
+	}
+
+	type junk struct {
+		id      int64
+		value   string
+		created int64
+	}
+	var junks []junk
+	rows, err = tx.QueryContext(ctx, `SELECT id, value, created_at FROM actions WHERE kind = ? ORDER BY id`, ActionJunk)
+	if err != nil {
+		return 0, err
+	}
+	for rows.Next() {
+		var j junk
+		if err := rows.Scan(&j.id, &j.value, &j.created); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		junks = append(junks, j)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	have := map[string]bool{}
+	for _, j := range junks {
+		have[j.value] = true
+	}
+	for _, j := range junks {
+		next := rekeyOld(j.value)
+		if sightings := moved[j.value]; len(sightings) > 0 {
+			next = latestBefore(sightings, j.created)
+		}
+		if next == j.value {
+			continue
+		}
+		if have[next] {
+			_, err = tx.ExecContext(ctx, `DELETE FROM actions WHERE id = ?`, j.id)
+		} else {
+			have[next] = true
+			_, err = tx.ExecContext(ctx, `UPDATE actions SET value = ? WHERE id = ?`, next, j.id)
+		}
+		if err != nil {
+			return 0, err
+		}
+	}
+	return len(changes), tx.Commit()
+}
+
+// sighting is one deal's first sighting and its new fingerprint, for Rekey.
+type sighting struct {
+	firstSeen int64
+	fp        string
+}
+
+// latestBefore returns the fingerprint of the latest sighting at or before
+// at, or of the earliest one if all came after it.
+func latestBefore(sightings []sighting, at int64) string {
+	best, earliest := -1, 0
+	for i, x := range sightings {
+		if x.firstSeen < sightings[earliest].firstSeen {
+			earliest = i
+		}
+		if x.firstSeen <= at && (best < 0 || x.firstSeen > sightings[best].firstSeen) {
+			best = i
+		}
+	}
+	if best < 0 {
+		best = earliest
+	}
+	return sightings[best].fp
 }
 
 // Temperatures returns each deal's snapshots, oldest first.

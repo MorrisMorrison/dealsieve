@@ -342,3 +342,25 @@ func TestPendingNotificationForRemovedChannelIsSkipped(t *testing.T) {
 		t.Errorf("logged %q, want nothing for a removed channel", logs.records)
 	}
 }
+
+func TestRecurrenceIsNotRetroactive(t *testing.T) {
+	h := newHarness(t, settings.When{Watchlist: true})
+	title := "Example Air Flash Sale: Flüge ab 19,99€"
+	start := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	for i, id := range []string{"1", "2", "3"} {
+		*h.now = start.Add(time.Duration(i) * 24 * time.Hour)
+		h.ingest(t, source.FeedTrending, deal(id, title, intp(150)))
+	}
+	if _, err := h.p.RecomputeRecent(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// The first two passed when they arrived; later re-posts don't change that.
+	for _, id := range []string{"mydealz:1", "mydealz:2"} {
+		if v := h.verdict(t, id); v.Decision != "pass" {
+			t.Errorf("%s after recompute = %+v, want pass", id, v)
+		}
+	}
+	if v := h.verdict(t, "mydealz:3"); v.Decision != "block" {
+		t.Errorf("third = %+v, want recurring block", v)
+	}
+}
