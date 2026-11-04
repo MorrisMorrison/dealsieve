@@ -26,7 +26,7 @@ function h(tag, props = {}, ...kids) {
 const st = {
   saved: null, draft: null, version: 0, warnings: {},
   suggestions: [], history: [], categories: [],
-  errors: {}, addingChannel: false,
+  errors: {}, addingChannel: false, stale: false,
 };
 let shown = new Set();
 
@@ -92,7 +92,7 @@ function select(options, value, onChange, label) {
 function numberInput(value, onInput, { min, label, width, pred } = {}) {
   const input = h('input', {
     type: 'number', value: String(value),
-    attrs: { 'aria-label': label || '', ...(min !== undefined ? { min } : {}) },
+    attrs: { 'aria-label': label || '', step: 1, ...(min !== undefined ? { min } : {}) },
     on: {
       input: (e) => {
         if (pred) clearErrors(pred, input);
@@ -116,6 +116,7 @@ function chipsField({ key, label, help, list, cls, placeholder, section, set, pr
         const next = addTo(list, input.value);
         if (next === list) { input.value = ''; return; }
         set(next);
+        clearErrors(pred);
         touch(section, `[data-chips="${key}"] input`);
       },
     },
@@ -123,7 +124,7 @@ function chipsField({ key, label, help, list, cls, placeholder, section, set, pr
   const chips = list.map((v) => h('span', { className: `chip ${cls}` }, v,
     h('button', {
       type: 'button', textContent: '×', attrs: { 'aria-label': `Remove ${v}` },
-      on: { click: () => { set(removeFrom(list, v)); touch(section, `[data-chips="${key}"] input`); } },
+      on: { click: () => { set(removeFrom(list, v)); clearErrors(pred); touch(section, `[data-chips="${key}"] input`); } },
     })));
   const errs = errorNodes(pred);
   const box = h('div', { className: `chips${errs.length ? ' invalid' : ''}`, attrs: { 'data-chips': key } }, chips, input);
@@ -163,16 +164,17 @@ function renderSuggestions() {
       apply, dismiss);
   });
   const sg = st.draft.suggestions;
-  const pred = under('suggestions');
+  const countPred = exact('suggestions.min_count');
+  const windowPred = exact('suggestions.window_days');
   return [
     ...(items.length ? items : [h('p', { className: 'empty', textContent: 'No suggestions right now.' })]),
     h('div', { className: 'field', style: 'margin-top:14px' },
       h('div', { className: 'row help' }, 'Suggest after ',
-        numberInput(sg.min_count, (v) => { sg.min_count = v; }, { min: 2, label: 'Hides or junks before suggesting', width: '64px', pred }),
+        numberInput(sg.min_count, (v) => { sg.min_count = v; }, { min: 2, label: 'Hides or junks before suggesting', width: '64px', pred: countPred }),
         ' hides or junks within ',
-        numberInput(sg.window_days, (v) => { sg.window_days = v; }, { min: 1, label: 'Suggestion window in days', width: '72px', pred }),
+        numberInput(sg.window_days, (v) => { sg.window_days = v; }, { min: 1, label: 'Suggestion window in days', width: '72px', pred: windowPred }),
         ' days.'),
-      errorNodes(pred)),
+      errorNodes(countPred), errorNodes(windowPred)),
   ];
 }
 
@@ -248,15 +250,16 @@ function renderFilters() {
 
 function renderRecurrence() {
   const rc = st.draft.rules.recurrence;
-  const pred = under('rules.recurrence');
+  const seenPred = exact('rules.recurrence.max_seen');
+  const windowPred = exact('rules.recurrence.window_days');
   return [h('div', { className: 'field' },
     h('div', { className: 'row' }, 'Block an offer once it was seen ',
-      numberInput(rc.max_seen, (v) => { rc.max_seen = v; }, { min: 1, label: 'Times seen before', width: '64px', pred }),
+      numberInput(rc.max_seen, (v) => { rc.max_seen = v; }, { min: 1, label: 'Times seen before', width: '64px', pred: seenPred }),
       ' times before within ',
-      numberInput(rc.window_days, (v) => { rc.window_days = v; }, { min: 1, label: 'Window in days', width: '72px', pred }),
+      numberInput(rc.window_days, (v) => { rc.window_days = v; }, { min: 1, label: 'Window in days', width: '72px', pred: windowPred }),
       ' days.'),
     h('span', { className: 'help', textContent: 'Watchlist matches are never blocked as recurring.' }),
-    errorNodes(pred))];
+    errorNodes(seenPred), errorNodes(windowPred))];
 }
 
 const FIELD_LABELS = { url: 'Server', topic: 'Topic', priority: 'Priority', chat_id: 'Chat ID', type: 'Type' };
@@ -367,6 +370,7 @@ function ruleRow(rule, i) {
       change: (e) => {
         if (!e.target.value) return;
         rule.channels = [...rule.channels, e.target.value];
+        clearErrors(pred);
         touch('notifications');
       },
     },
@@ -377,6 +381,7 @@ function ruleRow(rule, i) {
     select([['watchlist', 'a watchlist deal passes'], ['temperature', 'a deal reaches a temperature']],
       isTemp ? 'temperature' : 'watchlist', (v) => {
         rule.when = v === 'watchlist' ? 'watchlist' : { min_temperature: 500 };
+        clearErrors(pred);
         touch('notifications');
       }, 'Condition'),
     isTemp ? numberInput(rule.when.min_temperature, (v) => { rule.when = { min_temperature: v }; }, { label: 'Temperature', width: '80px', pred }) : null,
@@ -384,13 +389,19 @@ function ruleRow(rule, i) {
     h('span', { className: 'kw', textContent: 'send to' }),
     rule.channels.map((c) => h('span', { className: 'chip' }, c, h('button', {
       type: 'button', textContent: '×', attrs: { 'aria-label': `Stop sending to ${c}` },
-      on: { click: () => { rule.channels = removeFrom(rule.channels, c); touch('notifications'); } },
+      on: { click: () => { rule.channels = removeFrom(rule.channels, c); clearErrors(pred); touch('notifications'); } },
     }))),
     free.length ? picker : null,
     h('span', { className: 'spacer' }),
     h('button', {
       type: 'button', className: 'btn ghost small', textContent: 'Remove',
-      on: { click: () => { st.draft.notify.splice(i, 1); touch('notifications'); } },
+      on: {
+        click: () => {
+          st.draft.notify.splice(i, 1);
+          clearErrors((p) => p.startsWith('notify[')); // indices shift
+          touch('notifications');
+        },
+      },
     }),
     errs.length ? h('div', { style: 'flex-basis:100%' }, errs) : null);
 }
@@ -459,6 +470,7 @@ function adopt(doc) {
   st.version = doc.version;
   st.warnings = doc.warnings || {};
   st.errors = {};
+  st.stale = false;
 }
 
 async function onApply(s, applyBtn, dismissBtn) {
@@ -516,13 +528,16 @@ async function onSave() {
     const res = await putSettings(st.version, st.draft);
     adopt(res);
     renderAll();
-    const [history, suggestions] = await Promise.all([getHistory(), getSuggestions()]);
-    st.history = history;
-    st.suggestions = suggestions;
-    render('history');
-    render('suggestions');
     const msg = `Saved · ${res.rechecked ?? 0} recent deals re-checked`;
     toast(res.warning ? `${msg}. ${res.warning}` : msg, { ms: res.warning ? 6000 : 2500 });
+    // The save worked; a failed refresh of the side data must not look like a failed save.
+    try {
+      const [history, suggestions] = await Promise.all([getHistory(), getSuggestions()]);
+      st.history = history;
+      st.suggestions = suggestions;
+      render('history');
+      render('suggestions');
+    } catch { /* stale until the next load */ }
   } catch (err) {
     if (err.status === 422 && err.body?.errors) {
       st.errors = err.body.errors;
@@ -532,6 +547,7 @@ async function onSave() {
       $('.field-error')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       toast('Some settings need fixing', { error: true });
     } else if (err.status === 409) {
+      st.stale = true;
       banner('Someone else saved the settings. Reload to see them (your unsaved changes will be lost).', 'Reload', () => {
         st.draft = clone(st.saved); // so the unload warning doesn't fire
         location.reload();
@@ -569,10 +585,22 @@ async function init() {
   initTheme($('#theme-toggle'));
   initNav();
   $('#save').addEventListener('click', onSave);
-  $('#discard').addEventListener('click', () => {
+  $('#discard').addEventListener('click', async () => {
+    st.addingChannel = false;
+    if (st.stale) {
+      // After a 409 our version is out of date, so discarding must fetch the current one.
+      try {
+        await reload();
+        st.stale = false;
+        hideBanner();
+        renderAll();
+      } catch (err) {
+        toast(`Couldn't reload: ${err.message}`, { error: true });
+      }
+      return;
+    }
     st.draft = clone(st.saved);
     st.errors = {};
-    st.addingChannel = false;
     hideBanner();
     renderAll();
   });

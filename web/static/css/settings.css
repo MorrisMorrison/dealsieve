@@ -101,3 +101,5 @@ body.settings-page .add-channel .pick { display: flex; gap: 6px; }
 body.settings-page .savebar .grow { display: block; }
 body.settings-page .toast { bottom: 84px; }
 body.settings-page .add-channel { align-content: center; gap: 4px; }
+/* Sticky so a save error is visible wherever the user has scrolled to. */
+body.settings-page #page-error { position: sticky; top: 8px; z-index: 25; box-shadow: var(--shadow); border: 1px solid var(--warn); }
