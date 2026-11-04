@@ -235,7 +235,7 @@ func (s *Server) addAction(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	if _, err := s.Recompute.RecomputeRecent(r.Context()); err != nil {
+	if err := s.recompute(r.Context()); err != nil {
 		s.fail(w, err)
 		return
 	}
@@ -257,7 +257,7 @@ func (s *Server) deleteAction(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "action not found")
 		return
 	}
-	if _, err := s.Recompute.RecomputeRecent(r.Context()); err != nil {
+	if err := s.recompute(r.Context()); err != nil {
 		s.fail(w, err)
 		return
 	}
@@ -341,7 +341,7 @@ func (s *Server) undoAction(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	if _, err := s.Recompute.RecomputeRecent(r.Context()); err != nil {
+	if err := s.recompute(r.Context()); err != nil {
 		s.fail(w, err)
 		return
 	}
@@ -358,4 +358,11 @@ type opinionJSON struct {
 	Reason   string    `json:"reason"`
 	Model    string    `json:"model"`
 	JudgedAt time.Time `json:"judged_at"`
+}
+
+// recompute re-checks recent deals after a click. The click is already stored,
+// so the re-check finishes even if the client goes away (as for settings saves).
+func (s *Server) recompute(ctx context.Context) error {
+	_, err := s.Recompute.RecomputeRecent(context.WithoutCancel(ctx))
+	return err
 }
