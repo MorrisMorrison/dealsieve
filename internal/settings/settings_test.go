@@ -176,7 +176,7 @@ func TestParseClock(t *testing.T) {
 			t.Errorf("ParseClock(%q) = %d, %d, %v", in, h, m, ok)
 		}
 	}
-	for _, in := range []string{"", "7:05", "24:00", "12:60", "12-00", "12:00:00", "ab:cd"} {
+	for _, in := range []string{"", "7:05", "24:00", "12:60", "12-00", "12:00:00", "ab:cd", "+1:30", "-1:30", " 1:30", "1+:30", "1:+3", "01:-5"} {
 		if _, _, ok := ParseClock(in); ok {
 			t.Errorf("ParseClock(%q) ok", in)
 		}

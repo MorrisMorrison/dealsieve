@@ -8,7 +8,7 @@ One message a day per chosen channel with what passed since the previous digest:
 
 ## Behaviour
 
-- **Schedule:** daily at a set local time (`time`, default `18:00`) in a set time zone (`timezone`, default `Europe/Berlin`). A digest is due when the local time is at or past today's send time and the channel has had no successful digest at or after today's send time. If dealsieve was down at send time, the digest goes out when it starts again the same day; a day missed entirely is folded into the next digest (its window just covers more).
+- **Schedule:** daily at a set local time (`time`, default `18:00`) in a set time zone (`timezone`, default `Europe/Berlin`). A digest is due when the local time is at or past today's send time and the channel's last cutoff (a sent digest or an empty window; test digests don't write one) is not on today's local date in the digest's time zone. So changing the time or zone after today's digest went out doesn't send a second one that day. If dealsieve was down at send time, the digest goes out when it starts again the same day; a day missed entirely is folded into the next digest (its window just covers more).
 - **Window:** since the channel's last successful digest (`last_cutoff`); the moment the digest is composed is the new `cutoff`. The first digest for a channel looks back 24 hours.
 - **Selection:** deals whose current verdict is `pass`, that were seen in a feed since the previous digest (`last_seen > last_cutoff`), and that this channel hasn't had in a digest yet (`digest_sent`). The window is on `last_seen`, not `first_seen`, because a deal usually passes hours after it is first seen: dealsieve sees almost every deal while it is still cold in the every-new-deal feed, and it passes once it trends. A deal missed by a timing edge (its row and its verdict are written separately) is picked up next time, since trending deals are re-polled every few minutes and their `last_seen` keeps moving.
   - **Watchlist hits** (`watchlist_hit = 1`): all of them, newest first, at most 10.
@@ -34,7 +34,7 @@ Top deals
 - A section is left out when it is empty. Titles are cut to 80 characters with `…`; price and temperature are left out when unknown.
 - **Telegram** gets an HTML version of the same body (`parse_mode: HTML`): each title is a link to its deal, and the text is HTML-escaped. If `DEALSIEVE_PUBLIC_URL` is set, a last line links to the inbox.
 - **ntfy** gets the plain body. Its click URL is `DEALSIEVE_PUBLIC_URL` when set; otherwise the notification has no click target.
-- Both stay under 4096 characters (Telegram's limit is characters, ntfy's is bytes): lines that don't fit are dropped from the end of the top list and replaced by `… and K more`.
+- Both stay under 4096 characters (Telegram's limit is characters, ntfy's is bytes): lines that don't fit are dropped from the end of the top list and, once that is empty, from the end of the watchlist hits; `… and K more` counts both. Line breaks and tabs in titles are flattened to one space. The Telegram send disables the link preview (`link_preview_options.is_disabled`).
 
 ## Settings
 
