@@ -90,6 +90,12 @@ docker run -d --name dealsieve -p 8080:8080 \
 Open the page and configure everything under **Settings** (the gear). The page has **no login**:
 keep it on a private network or put it behind your reverse proxy's authentication.
 
+**Add it to your home screen.** dealsieve is an installable web app: on iOS open the page in Safari,
+tap Share, then **Add to Home Screen**; on Android use Chrome's menu, **Install app** (or **Add to
+Home screen**). It opens full-screen with its own icon, and deal links still open in your browser.
+It still needs a connection to your instance (there is no offline mode), so away from home that means
+whatever access path you already use (VPN or an authenticating proxy).
+
 **Upgrading from v0.0.1?** Breaking change: `config.yaml` (and `DEALSIEVE_CONFIG`) is no longer
 read. Remove the mount and re-enter your settings on the Settings page.
 

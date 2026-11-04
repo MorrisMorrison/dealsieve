@@ -99,9 +99,10 @@ button { cursor: pointer; }
 .row-between { display: flex; justify-content: space-between; gap: 8px; }
 
 /* Layout */
-.app { max-width: 1120px; margin: 0 auto; padding: 0 16px 48px; }
+/* viewport-fit=cover lets the page run under the notch and home indicator in the installed app; the insets keep content clear of them. */
+.app { max-width: 1120px; margin: 0 auto; padding: 0 max(16px, env(safe-area-inset-right)) calc(48px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
 
-.appbar { display: flex; align-items: center; gap: 12px; padding: 18px 0 14px; }
+.appbar { display: flex; align-items: center; gap: 12px; padding: calc(18px + env(safe-area-inset-top)) 0 14px; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 16px; letter-spacing: -0.01em; }
 .logo { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; }
 .logo svg { width: 16px; height: 16px; }

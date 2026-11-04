@@ -23,6 +23,7 @@ import (
 	"github.com/MorrisMorrison/dealsieve/internal/settingsvc"
 	"github.com/MorrisMorrison/dealsieve/internal/source"
 	"github.com/MorrisMorrison/dealsieve/internal/store"
+	"github.com/MorrisMorrison/dealsieve/web"
 )
 
 type fakeRecompute struct {
@@ -541,5 +542,28 @@ func TestRepeatClickIsAccepted(t *testing.T) {
 	}
 	if actions, _ := h.st.Actions(context.Background()); len(actions) != 0 {
 		t.Errorf("actions after undo = %+v", actions)
+	}
+}
+
+func TestManifestAndIconsContentTypes(t *testing.T) {
+	h := newHarness(t)
+	s := *h.api
+	s.Assets = web.Assets
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+	for path, want := range map[string]string{
+		"/static/manifest.webmanifest":        "application/manifest+json",
+		"/static/icons/icon-192.png":          "image/png",
+		"/static/icons/apple-touch-icon.png":  "image/png",
+		"/static/icons/icon-maskable-512.png": "image/png",
+	} {
+		resp, err := srv.Client().Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 200 || !strings.HasPrefix(resp.Header.Get("Content-Type"), want) {
+			t.Errorf("%s: %d %q, want %s", path, resp.StatusCode, resp.Header.Get("Content-Type"), want)
+		}
 	}
 }
