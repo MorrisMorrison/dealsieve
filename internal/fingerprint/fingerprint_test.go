@@ -71,3 +71,28 @@ func TestRekeyOld(t *testing.T) {
 		t.Errorf("RekeyOld unchanged key = %q", got)
 	}
 }
+
+func TestCleanTitleDropsOtherLanguagesStopwords(t *testing.T) {
+	cases := map[string]string{
+		"Example Plancha de vapor con depósito para el hogar": "example plancha vapor depósito hogar",
+		"Example Ordinateur portable pour le jeu avec souris": "example ordinateur portable jeu souris",
+		"Example Odkurzacz bezprzewodowy dla domu na raty":    "example odkurzacz bezprzewodowy domu raty",
+		"Example Socks by Example Brand, 20% off":             "example socks example brand",
+	}
+	for in, want := range cases {
+		if got := CleanTitle(in); got != want {
+			t.Errorf("CleanTitle(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestRekeyOldDropsStopwords(t *testing.T) {
+	if got := RekeyOld("example shop|de echo la para"); got != "example shop|echo" {
+		t.Errorf("RekeyOld = %q", got)
+	}
+	// Idempotent on a current key.
+	k := Key("Example Shop", CleanTitle("Example Echo Dot"))
+	if RekeyOld(k) != k {
+		t.Errorf("RekeyOld changed a current key %q", k)
+	}
+}
