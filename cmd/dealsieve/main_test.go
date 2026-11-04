@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MorrisMorrison/dealsieve/internal/judge"
 	"github.com/MorrisMorrison/dealsieve/internal/store"
 )
 
@@ -77,5 +78,31 @@ func TestRunShutsDownCleanly(t *testing.T) {
 	defer st.Close()
 	if _, err := st.ListDeals(context.Background(), "passed", nil, time.Time{}, 10); err != nil {
 		t.Fatalf("database unusable after shutdown: %v", err)
+	}
+}
+
+func TestNewServerTimeouts(t *testing.T) {
+	srv := newServer(":0", http.NotFoundHandler())
+	if srv.Addr != ":0" || srv.Handler == nil {
+		t.Fatalf("addr/handler not set: %q %v", srv.Addr, srv.Handler)
+	}
+	for name, d := range map[string]time.Duration{
+		"ReadHeaderTimeout": srv.ReadHeaderTimeout,
+		"ReadTimeout":       srv.ReadTimeout,
+		"WriteTimeout":      srv.WriteTimeout,
+		"IdleTimeout":       srv.IdleTimeout,
+	} {
+		if d <= 0 {
+			t.Errorf("%s not set", name)
+		}
+	}
+	if srv.ReadTimeout < srv.ReadHeaderTimeout {
+		t.Errorf("ReadTimeout %v below ReadHeaderTimeout %v", srv.ReadTimeout, srv.ReadHeaderTimeout)
+	}
+	// The slowest handler is the judge test (its own call timeout); a test
+	// send is bounded by the notifier client timeout. Neither response may be cut off.
+	longest := max(judge.CallTimeout, notifyTimeout, feedTimeout)
+	if srv.WriteTimeout <= longest {
+		t.Errorf("WriteTimeout %v must exceed the longest outbound timeout %v", srv.WriteTimeout, longest)
 	}
 }

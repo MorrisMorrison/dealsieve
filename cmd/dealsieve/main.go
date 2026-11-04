@@ -34,6 +34,22 @@ import (
 
 const repoURL = "https://github.com/MorrisMorrison/dealsieve"
 
+const (
+	// Notifiers get a shorter timeout: the Settings page's test send waits
+	// for one, and a slow target shouldn't hold a poll up for long.
+	feedTimeout   = 30 * time.Second
+	notifyTimeout = 10 * time.Second
+
+	// HTTP server timeouts. Request bodies are small (capped at a few KB).
+	readHeaderTimeout = 10 * time.Second
+	readTimeout       = 20 * time.Second
+	// writeTimeout must exceed the slowest handler, or its response is cut off:
+	// that is the Test judge (judge.CallTimeout, 60 s) plus a margin. Test
+	// sends are bounded by notifyTimeout per channel.
+	writeTimeout = judge.CallTimeout + 30*time.Second
+	idleTimeout  = 120 * time.Second
+)
+
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
 		os.Exit(healthcheck())
@@ -65,10 +81,8 @@ func run(ctx context.Context) error {
 	}
 	defer st.Close()
 
-	// Notifiers get a shorter timeout: the Settings page's test send waits
-	// for one, and a slow target shouldn't hold a poll up for long.
-	feedClient := &http.Client{Timeout: 30 * time.Second}
-	notifyClient := &http.Client{Timeout: 10 * time.Second}
+	feedClient := &http.Client{Timeout: feedTimeout}
+	notifyClient := &http.Client{Timeout: notifyTimeout}
 	pipe := &pipeline.Pipeline{Store: st, Env: env, HTTP: notifyClient, Now: time.Now, Log: log}
 	// The judge exists before the settings service: Load applies settings,
 	// which wakes it. Its Settings closure only runs later.
@@ -134,15 +148,11 @@ func run(ctx context.Context) error {
 	wg.Go(func() { dg.Run(ctx) })
 	wg.Go(func() { jr.Run(ctx) })
 
-	srv := &http.Server{
-		Addr: env.Listen,
-		Handler: (&api.Server{
-			Store: st, Recompute: pipe, Status: pl.Status,
-			Settings: svc, Digest: dg, Judge: jr, Env: env, HTTP: notifyClient,
-			Assets: web.Assets, Log: log, Now: time.Now,
-		}).Handler(),
-		ReadHeaderTimeout: 10 * time.Second,
-	}
+	srv := newServer(env.Listen, (&api.Server{
+		Store: st, Recompute: pipe, Status: pl.Status,
+		Settings: svc, Digest: dg, Judge: jr, Env: env, HTTP: notifyClient,
+		Assets: web.Assets, Log: log, Now: time.Now,
+	}).Handler())
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
 	log.Info("dealsieve started", "version", version.Version, "listen", env.Listen)
@@ -161,6 +171,19 @@ func run(ctx context.Context) error {
 	cancel()
 	wg.Wait()
 	return srvErr
+}
+
+// newServer builds the HTTP server with timeouts so that slow or stalled
+// clients can't hold connections open forever.
+func newServer(addr string, h http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+	}
 }
 
 // applyAll puts settings into effect in the pipeline and the poller (which

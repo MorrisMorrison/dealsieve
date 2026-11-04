@@ -12,8 +12,9 @@ import (
 
 const (
 	// perTick bounds one minute's work so a backlog drains gradually.
-	perTick     = 20
-	callTimeout = 60 * time.Second
+	perTick = 20
+	// CallTimeout bounds one model call, including the Settings page's Test judge.
+	CallTimeout = 60 * time.Second
 	seenWithin  = 24 * time.Hour
 	retryAfter  = 10 * time.Minute
 	maxAttempts = 3
@@ -112,7 +113,7 @@ func (r *Runner) Tick(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		callCtx, cancel := context.WithTimeout(ctx, callTimeout)
+		callCtx, cancel := context.WithTimeout(ctx, CallTimeout)
 		op, err := j.Judge(callCtx, Deal{Title: rec.Title, Merchant: rec.Merchant, Price: rec.Price, Category: rec.Category, Temperature: rec.Temperature})
 		cancel()
 		if ctx.Err() != nil {
@@ -222,7 +223,7 @@ func (r *Runner) Test(ctx context.Context, j settings.Judge) TestResult {
 		return TestResult{Error: "a test is already running"}
 	}
 	defer r.testMu.Unlock()
-	callCtx, cancel := context.WithTimeout(ctx, callTimeout)
+	callCtx, cancel := context.WithTimeout(ctx, CallTimeout)
 	defer cancel()
 	op, err := r.New(j).Judge(callCtx, SampleDeal)
 	if err != nil {
