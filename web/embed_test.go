@@ -7,7 +7,7 @@ import (
 )
 
 func TestAssetsContainPage(t *testing.T) {
-	for _, name := range []string{"index.html", "static/css/styles.css", "static/js/main.js", "static/favicon.svg"} {
+	for _, name := range []string{"index.html", "static/css/styles.css", "static/js/main.js", "static/favicon.svg", "settings.html", "static/css/settings.css", "static/js/settings.js"} {
 		if _, err := fs.Stat(Assets, name); err != nil {
 			t.Errorf("%s: %v", name, err)
 		}
