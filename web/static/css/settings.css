@@ -56,6 +56,7 @@ body.settings-page .add-channel { border: 1px dashed var(--border); border-radiu
 body.settings-page .rules { display: grid; gap: 8px; }
 body.settings-page .rule { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; }
 body.settings-page .rule .kw { color: var(--muted); }
+body.settings-page .field > .row .kw { color: var(--muted); }
 body.settings-page .rule select { height: 30px; }
 
 body.settings-page .history { list-style: none; margin: 0; padding: 0; display: grid; }

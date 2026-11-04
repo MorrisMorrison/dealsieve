@@ -54,7 +54,8 @@ deal; on a phone, a deal opens as a full-screen sheet.
 Watchlist keywords are checked against every new deal as soon as it's posted, before it trends.
 Channels and notification rules are set on the Settings page (with a *Send test* button); tokens
 stay in environment variables. Notification rules send watchlist hits, or deals above a temperature, to
-[ntfy](https://ntfy.sh) and/or Telegram.
+[ntfy](https://ntfy.sh) and/or Telegram. An optional daily digest (off by default) sends one message a day
+with your watchlist hits and the top new deals; it has its own block on the Settings page.
 
 ## Run it
 
@@ -89,6 +90,7 @@ are snapshots on the way to a stable 1.0, not long-term-supported versions.
 | `DEALSIEVE_TELEGRAM_TOKEN` | | Bot token, needed for Telegram channels |
 | `DEALSIEVE_NTFY_TOKEN` | | Access token for a protected ntfy server |
 | `DEALSIEVE_MYDEALZ_URL` | `https://www.mydealz.de` | Feed host (for tests) |
+| `DEALSIEVE_PUBLIC_URL` | unset | The address you open dealsieve at, e.g. `https://deals.example.com`. The daily digest links to it. |
 
 Environment variables are for infrastructure and secrets and apply on restart; invalid values are
 rejected at startup with a list of problems. Everything else (watchlist, mutes, keywords,

@@ -58,3 +58,18 @@ func TestSummarizeDetails(t *testing.T) {
 		t.Errorf("Summarize =\n%q\nwant\n%q", got, want)
 	}
 }
+
+func TestSummarizeDigest(t *testing.T) {
+	prev := Defaults()
+	next := Defaults()
+	next.Digest = Digest{Enabled: true, Time: "07:30", Timezone: "Europe/Berlin", Top: 5, Channels: []string{"phone", "tg"}}
+	if got := Summarize(prev, next); !slices.Equal(got, []string{"Daily digest at 07:30 (Europe/Berlin) to phone, tg, top 5"}) {
+		t.Errorf("on: %q", got)
+	}
+	if got := Summarize(next, prev); !slices.Equal(got, []string{"Daily digest off"}) {
+		t.Errorf("off: %q", got)
+	}
+	if got := Summarize(prev, Defaults()); len(got) != 0 {
+		t.Errorf("unchanged: %q", got)
+	}
+}

@@ -32,6 +32,7 @@ export function changeCount(saved, draft) {
   if (!same(saved.channels, draft.channels)) n++;
   if (!same(saved.notify, draft.notify)) n++;
   if (!same(saved.suggestions, draft.suggestions)) n++;
+  if (!same(saved.digest, draft.digest)) n++;
   return n;
 }
 
@@ -41,3 +42,10 @@ export function nextChannelName(channels, base) {
   while (`${base}-${i}` in channels) i++;
   return `${base}-${i}`;
 }
+
+// Offered in the digest's time zone field; any IANA zone can be typed.
+export const TIMEZONES = [
+  'Europe/Berlin', 'Europe/Vienna', 'Europe/Zurich', 'Europe/Paris', 'Europe/Madrid', 'Europe/Rome',
+  'Europe/Amsterdam', 'Europe/Brussels', 'Europe/London', 'Europe/Dublin', 'Europe/Lisbon', 'Europe/Warsaw',
+  'America/New_York', 'America/Chicago', 'America/Los_Angeles', 'Asia/Tokyo', 'Australia/Sydney', 'UTC',
+];

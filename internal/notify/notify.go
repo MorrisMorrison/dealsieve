@@ -17,6 +17,9 @@ type Message struct {
 	Body     string
 	ClickURL string
 	ImageURL string
+	// HTML, when set, is the complete message for channels that render
+	// HTML (Telegram): title, body and links. Others use Title and Body.
+	HTML string
 }
 
 type Notifier interface {

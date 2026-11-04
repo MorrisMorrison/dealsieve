@@ -26,10 +26,21 @@ func Summarize(prev, next Settings) []string {
 	if !notifyEqual(prev.Notify, next.Notify) {
 		out = append(out, "Changed notify rules")
 	}
+	if p, n := prev.Digest, next.Digest; p.Enabled != n.Enabled || p.Time != n.Time || p.Timezone != n.Timezone ||
+		p.Top != n.Top || !slices.Equal(p.Channels, n.Channels) {
+		out = append(out, digestSummary(n))
+	}
 	if p, n := prev.Suggestions, next.Suggestions; p != n {
 		out = append(out, fmt.Sprintf("Suggestions: %d in %d days → %d in %d days", p.MinCount, p.WindowDays, n.MinCount, n.WindowDays))
 	}
 	return out
+}
+
+func digestSummary(d Digest) string {
+	if !d.Enabled {
+		return "Daily digest off"
+	}
+	return fmt.Sprintf("Daily digest at %s (%s) to %s, top %d", d.Time, d.Timezone, strings.Join(d.Channels, ", "), d.Top)
 }
 
 func listDiff(label string, prev, next []string) []string {

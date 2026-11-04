@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/MorrisMorrison/dealsieve/internal/digest"
+	"github.com/MorrisMorrison/dealsieve/internal/settings"
 )
 
 func TestGetAndPutSettings(t *testing.T) {
@@ -182,5 +186,34 @@ func TestRecheckFailureAfterSaveIsAWarning(t *testing.T) {
 	}
 	if got := h.svc.Current().Settings.Rules.MutedCategories; len(got) != 2 {
 		t.Errorf("muted categories = %v, want the saved ones", got)
+	}
+}
+
+type fakeDigest struct{ calls int }
+
+func (f *fakeDigest) SendTest(context.Context) []digest.TestResult {
+	f.calls++
+	return []digest.TestResult{{Channel: "phone", OK: true}, {Channel: "tg", Error: "telegram sendMessage: status 400"}}
+}
+
+func TestTestDigest(t *testing.T) {
+	h := newHarness(t)
+	fd := &fakeDigest{}
+	h.api.Digest = fd
+	resp, body := h.do(t, "POST", "/api/settings/digest/test", "")
+	if resp.StatusCode != http.StatusUnprocessableEntity || fd.calls != 0 {
+		t.Fatalf("no digest channels: %d %s", resp.StatusCode, body)
+	}
+
+	s := h.svc.Current().Settings
+	s.Channels = map[string]settings.Channel{"phone": {Type: "ntfy", URL: "https://ntfy.example.com", Topic: "deals"}}
+	s.Digest.Channels = []string{"phone"}
+	if _, err := h.svc.Save(context.Background(), h.svc.Current().Version, s); err != nil {
+		t.Fatal(err)
+	}
+	resp, body = h.do(t, "POST", "/api/settings/digest/test", "")
+	if resp.StatusCode != 200 || fd.calls != 1 ||
+		!strings.Contains(string(body), `{"channel":"phone","ok":true}`) || !strings.Contains(string(body), `"error":"telegram sendMessage: status 400"`) {
+		t.Errorf("test digest %d: %s", resp.StatusCode, body)
 	}
 }
