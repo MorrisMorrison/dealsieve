@@ -287,6 +287,8 @@ behind a reverse proxy or auth layer if it isn't only on a private network.
   `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer` on every response.
 - Pass verdicts now record why they passed (temperature against the minimum, recurrence), after the
   watchlist reason; block reasons are unchanged.
+- Settings moved from `config.yaml` into an in-app Settings page (issue #21); see
+  `docs/superpowers/specs/2026-11-04-settings-page-design.md`. `config.yaml` and `DEALSIEVE_CONFIG` are no longer read.
 
 ## Later
 

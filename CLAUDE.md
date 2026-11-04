@@ -9,7 +9,10 @@ dealsieve is a small self-hosted filter for deal feeds. One Go binary polls a so
 | Path | Responsibility |
 |---|---|
 | `cmd/dealsieve/` | `main.go`: wiring only (config, store, pipeline, poller, prune loop, HTTP server, graceful shutdown) and the `healthcheck` subcommand used by the image's `HEALTHCHECK` |
-| `internal/config/` | YAML config + `DEALSIEVE_*` env vars, defaults and validation (all problems reported at once) |
+| `internal/config/` | `DEALSIEVE_*` env vars only (paths, poll intervals, secrets); no YAML |
+| `internal/settings/` | The user settings document (JSON): `Defaults`, `Validate` (all problems keyed by field path), `Summarize` (change summaries), conversions for the rules engine and notifiers |
+| `internal/settingsvc/` | Saves, undoes and applies settings (versions, conflict check, swap into the pipeline, recompute) and serves suggestions |
+| `internal/suggest/` | Pure: mute suggestions from Hide/Junk clicks, settings and dismissals |
 | `internal/source/` | `Deal`, `Feed` and the `Fetcher` interface; `source/mydealz/` is the RSS adapter (fixtures in `testdata/`) |
 | `internal/fingerprint/` | `CleanTitle` + `Key`: merchant plus sorted distinct title words without numbers, so re-posts of the same offer share a key |
 | `internal/rules/` | The rule engine: `Evaluate(Deal, Facts) Result` — pure, no I/O |
@@ -17,12 +20,12 @@ dealsieve is a small self-hosted filter for deal feeds. One Go binary polls a so
 | `internal/poller/` | One loop per feed with its own interval, backoff on failures (capped at 30 min), per-feed status for the page |
 | `internal/notify/` | `Notifier` interface, ntfy and Telegram implementations |
 | `internal/store/` | SQLite (modernc, pure Go): deals, temperature snapshots, verdicts, actions, notification bookkeeping; numbered migrations in `migrations/` tracked by `PRAGMA user_version` |
-| `internal/api/` | `net/http` mux: JSON API (`/api/deals`, `/api/actions`, `/api/rules`, `/api/status`), `/health`, the embedded page |
+| `internal/api/` | `net/http` mux: JSON API (`/api/deals`, `/api/actions`, `/api/settings*`, `/api/suggestions*`, `/api/categories`, `/api/status`), `/health`, the embedded pages |
 | `internal/judge/` | Placeholder interface for a later LLM opinion; v1 ships only `Noop` |
 | `internal/version/` | `Version`, stamped with `-ldflags -X` from the `VERSION` build arg |
-| `web/` | The page: `index.html`, `static/css`, `static/js` (vanilla ES modules, no build step), embedded by `embed.go` |
+| `web/` | The pages: `index.html` (inbox), `settings.html` (Settings), `static/css`, `static/js` (vanilla ES modules, no build step), embedded by `embed.go` |
 | `docs-site/` | The docs website (Astro + Starlight): hand-written Markdown pages in `src/content/docs/`, published to GitHub Pages |
-| `screenshots/` | README screenshot tool (Node + Playwright, its own `package.json`): made-up demo `config.yaml` + RSS `feeds/`, `capture.mjs` runs the built binary against a fake feed server and writes `docs/screenshots/` (git-ignored). The `screenshots.yml` workflow publishes them to the `screenshots` branch |
+| `screenshots/` | README screenshot tool (Node + Playwright, its own `package.json`): made-up demo `settings.json` (applied through `PUT /api/settings`) + RSS `feeds/`, `capture.mjs` runs the built binary against a fake feed server and writes `docs/screenshots/` (git-ignored). The `screenshots.yml` workflow publishes them to the `screenshots` branch |
 | `test/e2e/` | End-to-end test: builds the real binary and runs it against fake feed and ntfy servers |
 
 ## Commands
@@ -38,7 +41,7 @@ CGO_ENABLED=0 go build -o dealsieve ./cmd/dealsieve && (cd screenshots && npm ci
 ```
 Docs site (in `docs-site/`): `npm ci`, `npm run dev` (preview), `npm run build` (also fails on a broken internal link). Edit the Markdown in `docs-site/src/content/docs/`; to add a page, create the file and list it in the sidebar in `astro.config.mjs`. Links inside pages need the `/dealsieve/` base.
 
-Running it needs a `config.yaml` (start from `config.example.yaml`) and writes `./data/dealsieve.db`. Both are git-ignored.
+Running it needs nothing but a data dir (it writes `./data/dealsieve.db`, git-ignored); configure it on the Settings page.
 
 ## How tests isolate the outside world
 - **Nothing in the tests talks to mydealz, ntfy or Telegram.** Sources and notifiers take a base URL and an `*http.Client`; tests point them at `httptest.Server`s. The e2e test serves `internal/source/mydealz/testdata/*.xml` as `/rss/trending` and `/rss/alles` and sets `DEALSIEVE_MYDEALZ_URL` to that server.
@@ -47,14 +50,15 @@ Running it needs a `config.yaml` (start from `config.example.yaml`) and writes `
 - **Fixtures are made up** (`Example Shop`, `Example Air`, `static.example.test`). Never copy real feed content into the repo. If the feed format changes, change the fixture by hand to match.
 
 ## Conventions
-- **Go:** standard library first (`net/http` with method patterns, `log/slog`, `database/sql`); the only direct dependencies are `modernc.org/sqlite` and `gopkg.in/yaml.v3`. No web framework. Ask before adding a dependency. Wrap errors with `%w`. Log a constant message plus key/value attrs. Comments are sparse and explain *why*.
+- **Go:** standard library first (`net/http` with method patterns, `log/slog`, `database/sql`); the only direct dependency is `modernc.org/sqlite`. No web framework. Ask before adding a dependency. Wrap errors with `%w`. Log a constant message plus key/value attrs. Comments are sparse and explain *why*.
 - **Rule order is the contract.** `rules.blockReason` checks, in order: hidden → muted category → muted merchant → block keyword → recurring → junk fingerprint → (watchlist hits stop here) → too cold → new-only. The first block reason wins and is listed first in `Reasons`. Watchlist hits get `+1000` score and are exempt from the recurrence and temperature rules on purpose. A passing deal also records pass reasons (temperature, recurrence) after the watchlist reason. A new rule needs a place in that order, a human-readable reason string, and a table test in `rules_test.go`.
 - **Keywords match the raw lowercased title**, not the cleaned one (cleaning drops numbers like `5080`).
 - **Fingerprints:** changing `CleanTitle`/`Key` changes every stored fingerprint's meaning (recurrence counts and junk actions are keyed by it). Treat it as a migration: say so in the PR and decide what happens to existing rows.
-- **Verdicts are recomputed** for the last 7 days after every action (and at startup, so config changes apply). Recompute never notifies.
+- **Verdicts are recomputed** for the last 7 days after every action and after every settings change (and at startup). Recompute never notifies.
 - **Notifications:** at most one successful send per (deal, channel), up to 3 attempts, failed ones retried on later polls. Keep that bookkeeping in `notifications_sent`.
 - **Schema changes** go in a new `internal/store/migrations/NNN_*.sql`; never edit an applied migration.
-- **Config:** every setting has a default in `config.defaults()` and is validated in `validate()`. Secrets come only from env vars (`DEALSIEVE_TELEGRAM_TOKEN`, `DEALSIEVE_NTFY_TOKEN`), never from the YAML. New settings go in `config.example.yaml` and the README table.
+- **Settings:** user settings live in the `settings` document (validated in `settings.Validate`, summarised in `settings.Summarize`); every setting needs a default in `settings.Defaults`, a validation rule, a summary line, a form control on the Settings page and a docs-site entry. Env vars are for infrastructure and secrets only (`DEALSIEVE_TELEGRAM_TOKEN`, `DEALSIEVE_NTFY_TOKEN` never enter the settings, the database or an API response); a new env var goes in `config.FromEnv`, the README table and the docs-site configuration page.
+- **Mutes are settings, Hide/Junk are actions.** `POST /api/actions` routes `mute_category`/`mute_merchant` to the settings lists (a new version); settings saves are versioned, conflict-checked with `version`, and applied without a restart.
 - **API:** errors are `{"error": "..."}`. Writes are protected by `http.CrossOriginProtection`; every response gets `nosniff` and `no-referrer`. The page has no login by design — it's meant for a private network or behind a reverse proxy's auth.
 - **Front-end:** plain HTML, CSS and ES modules; no framework, no npm packages in `web/`, no build step (npm packages exist only in the dev tooling: `screenshots/` and `docs-site/`). Build the DOM with `textContent` and attributes, never `innerHTML` with data (deal titles are untrusted). Pure helpers (`format.js`, `sparkline.js`) get a `*.test.js` next to them.
 - **Being a good feed citizen:** keep default poll intervals reasonable, send the identifying `User-Agent` (`dealsieve/<version> (+repo URL)`), link every deal back to the original post.

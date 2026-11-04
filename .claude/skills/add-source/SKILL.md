@@ -11,14 +11,14 @@ Both are small adapters behind an interface, configured with a base URL and an `
 1. Implement `source.Fetcher`: `Fetch(ctx, feed) ([]source.Deal, error)` for `FeedTrending` and `FeedNew`. IDs are `"<source>:<id at the source>"`; `Title` has no temperature prefix; `Temperature` is nil when the feed has none.
 2. Send the identifying `User-Agent` the mydealz client gets from `main.go`. Return an error (don't return zero deals) when the response isn't the expected format, e.g. an HTML error page — the poller backs off on errors.
 3. Fixtures in `testdata/`: **made-up deals only** (`Example Shop`, `static.example.test`), never copied feed content. Test parsing from the fixture and `Fetch` against an `httptest.Server` (path, `User-Agent`, status errors), like `mydealz_test.go`.
-4. Config: a base-URL env var `DEALSIEVE_<NAME>_URL` in `config.envFrom` (for tests), README table. Wiring in `cmd/dealsieve/main.go`. The rules, fingerprints and store are source-agnostic; the deal ID prefix keeps sources apart.
+4. Config: a base-URL env var `DEALSIEVE_<NAME>_URL` in `config.FromEnv` (for tests), README table and the docs-site configuration page. Wiring in `cmd/dealsieve/main.go`. The rules, fingerprints and store are source-agnostic; the deal ID prefix keeps sources apart.
 5. Extend `test/e2e` if the source changes what the page shows.
 
 ## A notifier (`internal/notify/`)
 1. Implement `notify.Notifier` (`Send(ctx, Message) error`); non-2xx is an error, so the pipeline retries (max 3 attempts per deal and channel).
-2. Add the channel `type` to `config.Channel` validation and `notify.FromConfig`. Secrets (tokens) come from `DEALSIEVE_*` env vars only, never the YAML.
+2. Add the channel `type` to channel validation in `internal/settings` (with its fields, a default, a `Summarize` line and a test) and to `notify.FromSettings` / `notify.ForChannel`. Secrets (tokens) come from `DEALSIEVE_*` env vars only, never the settings document, the database or an API response; warn on the channel (`settings.Warnings`) when its token is missing.
 3. Test against an `httptest.Server` in `notify_test.go`: request shape, auth header, error on failure.
-4. Document it in `config.example.yaml` and the README.
+4. Add the channel to the Settings page (a card with its fields and the **Send test** button, which goes through `POST /api/settings/test`) and document it in the docs-site notifications and configuration pages and the README.
 
 ## Verify
 ```bash
