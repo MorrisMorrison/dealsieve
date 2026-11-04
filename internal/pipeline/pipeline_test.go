@@ -302,6 +302,145 @@ func TestConcurrentFeedsSendOnce(t *testing.T) {
 	}
 }
 
+// blockingNotifier signals each Send on started and waits for release
+// (closed) before it returns err.
+type blockingNotifier struct {
+	started chan struct{}
+	release chan struct{}
+	mu      sync.Mutex
+	calls   int
+	err     error
+}
+
+func newBlockingNotifier() *blockingNotifier {
+	return &blockingNotifier{started: make(chan struct{}, 10), release: make(chan struct{})}
+}
+
+func (b *blockingNotifier) Send(_ context.Context, _ notify.Message) error {
+	b.mu.Lock()
+	b.calls++
+	err := b.err
+	b.mu.Unlock()
+	b.started <- struct{}{}
+	<-b.release
+	return err
+}
+
+func (b *blockingNotifier) count() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.calls
+}
+
+// startBlockedIngest runs Ingest in the background and returns once its send
+// is blocked in the notifier; wait returns Ingest's error.
+func startBlockedIngest(t *testing.T, h *harness, b *blockingNotifier, feed source.Feed, deals ...source.Deal) (wait func() error) {
+	t.Helper()
+	done := make(chan error, 1)
+	go func() { done <- h.p.Ingest(ctx, feed, deals) }()
+	select {
+	case <-b.started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("send never started")
+	}
+	return func() error { return <-done }
+}
+
+// ingestOrError is h.ingest for use off the test goroutine.
+func ingestOrError(t *testing.T, h *harness, feed source.Feed, deals ...source.Deal) {
+	if err := h.p.Ingest(ctx, feed, deals); err != nil {
+		t.Error(err)
+	}
+}
+
+// within fails the test if fn doesn't return in time.
+func within(t *testing.T, what string, fn func()) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() { fn(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("%s blocked behind a pending send", what)
+	}
+}
+
+func TestSlowSendDoesNotBlockRecomputeOrSettings(t *testing.T) {
+	h := newHarness(t, settings.When{Watchlist: true})
+	b := newBlockingNotifier()
+	h.p.Notifiers["push"] = b
+	wait := startBlockedIngest(t, h, b, source.FeedTrending, deal("1", "Example OLED TV", intp(150)))
+	defer close(b.release)
+
+	within(t, "RecomputeRecent", func() {
+		if _, err := h.p.RecomputeRecent(ctx); err != nil {
+			t.Error(err)
+		}
+	})
+	within(t, "ApplySettings", func() { h.p.ApplySettings(settings.Defaults()) })
+
+	b.release <- struct{}{} // unblock the one send; the deferred close covers failures
+	if err := wait(); err != nil {
+		t.Fatal(err)
+	}
+	if sent, attempts, _ := h.st.NotificationState(ctx, "mydealz:1", "push"); !sent || attempts != 1 {
+		t.Errorf("sent %v, attempts %d; want the send recorded through the old notifier", sent, attempts)
+	}
+}
+
+func TestConcurrentIngestSkipsADealBeingSent(t *testing.T) {
+	h := newHarness(t, settings.When{Watchlist: true})
+	b := newBlockingNotifier()
+	h.p.Notifiers["push"] = b
+	d := deal("1", "Example OLED TV", intp(150))
+	wait := startBlockedIngest(t, h, b, source.FeedTrending, d)
+	defer close(b.release)
+
+	within(t, "second Ingest", func() { ingestOrError(t, h, source.FeedNew, d) })
+	b.release <- struct{}{}
+	if err := wait(); err != nil {
+		t.Fatal(err)
+	}
+	h.ingest(t, source.FeedTrending, d) // already sent: nothing more
+	if n := b.count(); n != 1 {
+		t.Errorf("sent %d, want 1", n)
+	}
+	if sent, attempts, _ := h.st.NotificationState(ctx, "mydealz:1", "push"); !sent || attempts != 1 {
+		t.Errorf("sent %v, attempts %d; want true, 1", sent, attempts)
+	}
+}
+
+func TestRetryInFlightIsNotSentAgainByAFreshDecision(t *testing.T) {
+	h := newHarness(t, settings.When{Watchlist: true})
+	h.push.fail = true
+	d := deal("1", "Example OLED TV", intp(150))
+	h.ingest(t, source.FeedTrending, d) // attempt 1 fails
+
+	b := newBlockingNotifier()
+	b.err = errors.New("boom")
+	h.p.Notifiers["push"] = b
+	wait := startBlockedIngest(t, h, b, source.FeedTrending) // attempt 2: the retry
+	defer close(b.release)
+	within(t, "Ingest with the same deal", func() { ingestOrError(t, h, source.FeedNew, d) })
+	b.release <- struct{}{}
+	if err := wait(); err != nil {
+		t.Fatal(err)
+	}
+	if n := b.count(); n != 1 {
+		t.Fatalf("sent %d while a retry was in flight, want 1", n)
+	}
+	if _, attempts, _ := h.st.NotificationState(ctx, "mydealz:1", "push"); attempts != 2 {
+		t.Fatalf("attempts = %d, want 2 (the failed retry recorded)", attempts)
+	}
+
+	h.p.Notifiers["push"] = h.push
+	h.push.fail = false
+	h.ingest(t, source.FeedTrending) // attempt 3: retried on the next poll
+	if sent, attempts, _ := h.st.NotificationState(ctx, "mydealz:1", "push"); !sent || attempts != 3 || h.push.count() != 1 {
+		t.Errorf("sent %v, attempts %d, delivered %d; want true, 3, 1", sent, attempts, h.push.count())
+	}
+}
+
 type recordingHandler struct {
 	mu      sync.Mutex
 	records []string

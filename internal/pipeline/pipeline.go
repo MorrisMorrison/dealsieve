@@ -26,7 +26,9 @@ const (
 	maxNotifyAttempts = 3
 )
 
-// Pipeline serialises Ingest, RecomputeRecent and Prune with a mutex.
+// Pipeline serialises Ingest, RecomputeRecent, Prune and ApplySettings with a
+// mutex. Ingest sends its notifications after unlocking, so a slow target
+// doesn't hold up the others.
 type Pipeline struct {
 	mu        sync.Mutex
 	Store     *store.Store
@@ -41,19 +43,43 @@ type Pipeline struct {
 	// sources holds the enabled sources; nil until settings are applied.
 	sources     map[string]bool
 	multiSource bool
+	// sending holds the deal|channel pairs an Ingest has claimed and is
+	// sending outside the lock. Other calls skip them until the result is
+	// recorded, so two polls never send the same pair at once.
+	sending map[string]bool
+}
+
+// pendingSend is a notification decided and claimed under the lock, with the
+// notifier and message captured then, and sent after unlocking.
+type pendingSend struct {
+	key, dealID, channel string
+	attempt              int
+	notifier             notify.Notifier
+	msg                  notify.Message
 }
 
 // Ingest stores what a feed returned, re-evaluates those deals and sends
 // notifications. Failed notifications from earlier polls are retried first,
-// and each (deal, channel) gets at most one attempt per call.
+// and each (deal, channel) gets at most one attempt per call. The sends
+// happen after the lock is released; Ingest returns once they are recorded.
 func (p *Pipeline) Ingest(ctx context.Context, feed source.Feed, deals []source.Deal) error {
+	now := p.Now()
+	sends, err := p.ingest(ctx, feed, deals, now)
+	for _, s := range sends {
+		p.deliver(ctx, s, now)
+	}
+	return err
+}
+
+// ingest does Ingest's work under the lock and returns the claimed sends,
+// also on an error, so the ones decided before it still go out.
+func (p *Pipeline) ingest(ctx context.Context, feed source.Feed, deals []source.Deal, now time.Time) ([]pendingSend, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	now := p.Now()
-	retried := p.retryPending(ctx, now)
+	sends := p.retryPending(ctx)
 	facts, err := p.actionFacts(ctx)
 	if err != nil {
-		return err
+		return sends, err
 	}
 	for _, d := range deals {
 		if p.sources != nil && !p.sources[d.Source] {
@@ -62,7 +88,7 @@ func (p *Pipeline) Ingest(ctx context.Context, feed source.Feed, deals []source.
 		clean, key := fingerprint.Of(d.Merchant, d.Title)
 		rec, err := p.Store.UpsertDeal(ctx, d, feed, clean, key, now)
 		if err != nil {
-			return fmt.Errorf("store deal %s: %w", d.ID, err)
+			return sends, fmt.Errorf("store deal %s: %w", d.ID, err)
 		}
 		if err := p.indexProduct(ctx, d); err != nil {
 			// Information only; the startup reindex repairs the table.
@@ -70,18 +96,19 @@ func (p *Pipeline) Ingest(ctx context.Context, feed source.Feed, deals []source.
 		}
 		res, err := p.decide(ctx, rec, facts, now)
 		if err != nil {
-			return err
+			return sends, err
 		}
 		if res.Decision == rules.Pass {
 			for _, ch := range p.channelsFor(rec, res) {
-				if retried[rec.ID+"|"+ch] {
-					continue // already attempted this poll; later polls retry
+				// A pair retried above (or listed twice) is already claimed,
+				// so claim skips it: one attempt per call.
+				if s, ok := p.claim(ctx, rec, res.Reasons, ch); ok {
+					sends = append(sends, s)
 				}
-				p.send(ctx, rec, res.Reasons, ch, now)
 			}
 		}
 	}
-	return nil
+	return sends, nil
 }
 
 // ApplySettings swaps the rule engine and notifiers in place; a poll in
@@ -208,39 +235,65 @@ func (p *Pipeline) label(src string) string {
 	return settings.SourceLabel(src)
 }
 
-func (p *Pipeline) send(ctx context.Context, rec store.DealRecord, reasons []string, channel string, now time.Time) {
+// claim decides whether (deal, channel) gets an attempt now and, if so,
+// marks it as being sent and captures the notifier and message. Callers hold
+// p.mu; deliver releases the claim.
+func (p *Pipeline) claim(ctx context.Context, rec store.DealRecord, reasons []string, channel string) (pendingSend, bool) {
+	key := rec.ID + "|" + channel
+	if p.sending[key] {
+		return pendingSend{}, false // another call (or this one) is sending it
+	}
 	sent, attempts, err := p.Store.NotificationState(ctx, rec.ID, channel)
 	if err != nil {
 		p.Log.Error("reading notification state", "deal", rec.ID, "channel", channel, "err", err)
-		return
+		return pendingSend{}, false
 	}
 	if sent || attempts >= maxNotifyAttempts {
-		return
+		return pendingSend{}, false
 	}
 	n, ok := p.Notifiers[channel]
 	if !ok {
 		p.Log.Error("no notifier for channel", "channel", channel)
-		return
+		return pendingSend{}, false
 	}
-	sendErr := n.Send(ctx, notify.DealMessage(p.label(rec.Source), rec.Title, rec.Price, rec.Merchant, rec.Temperature, reasons, rec.URL, rec.ImageURL))
+	if p.sending == nil {
+		p.sending = map[string]bool{}
+	}
+	p.sending[key] = true
+	return pendingSend{
+		key: key, dealID: rec.ID, channel: channel, attempt: attempts + 1, notifier: n,
+		msg: notify.DealMessage(p.label(rec.Source), rec.Title, rec.Price, rec.Merchant, rec.Temperature, reasons, rec.URL, rec.ImageURL),
+	}, true
+}
+
+// deliver sends a claimed notification without the lock, records the attempt
+// and only then releases the claim, so the next claim sees the result.
+func (p *Pipeline) deliver(ctx context.Context, s pendingSend, now time.Time) {
+	defer func() {
+		p.mu.Lock()
+		delete(p.sending, s.key)
+		p.mu.Unlock()
+	}()
+	sendErr := s.notifier.Send(ctx, s.msg)
 	if sendErr != nil {
 		if ctx.Err() != nil {
 			return // cancelled by shutdown or by the source being turned off mid-poll, not a delivery failure
 		}
-		p.Log.Warn("notification failed", "deal", rec.ID, "channel", channel, "attempt", attempts+1, "err", sendErr)
+		p.Log.Warn("notification failed", "deal", s.dealID, "channel", s.channel, "attempt", s.attempt, "err", sendErr)
 	}
-	if err := p.Store.RecordNotification(ctx, rec.ID, channel, sendErr == nil, now); err != nil {
-		p.Log.Error("recording notification", "deal", rec.ID, "channel", channel, "err", err)
+	// Record even if ctx ends right now: a send that went out must count.
+	if err := p.Store.RecordNotification(context.WithoutCancel(ctx), s.dealID, s.channel, sendErr == nil, now); err != nil {
+		p.Log.Error("recording notification", "deal", s.dealID, "channel", s.channel, "err", err)
 	}
 }
 
-// retryPending returns the deal|channel keys it attempted.
-func (p *Pipeline) retryPending(ctx context.Context, now time.Time) map[string]bool {
-	attempted := map[string]bool{}
+// retryPending claims the failed notifications that are due another attempt.
+func (p *Pipeline) retryPending(ctx context.Context) []pendingSend {
+	var sends []pendingSend
 	pending, err := p.Store.PendingNotifications(ctx, maxNotifyAttempts)
 	if err != nil {
 		p.Log.Error("listing pending notifications", "err", err)
-		return attempted
+		return nil
 	}
 	for _, pn := range pending {
 		if _, ok := p.Notifiers[pn.Channel]; !ok {
@@ -257,10 +310,11 @@ func (p *Pipeline) retryPending(ctx context.Context, now time.Time) map[string]b
 		if err != nil || v.Decision != string(rules.Pass) {
 			continue
 		}
-		attempted[pn.DealID+"|"+pn.Channel] = true
-		p.send(ctx, rec, v.Reasons, pn.Channel, now)
+		if s, ok := p.claim(ctx, rec, v.Reasons, pn.Channel); ok {
+			sends = append(sends, s)
+		}
 	}
-	return attempted
+	return sends
 }
 
 // indexProduct keeps the deal's price-history index current; a deal whose
