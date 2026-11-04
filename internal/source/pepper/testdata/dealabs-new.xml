@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:media="http://search.yahoo.com/mrss/" xmlns:pepper="http://www.pepper.com/rss" version="2.0">
+<channel>
+<title>dealabs</title>
+<link>https://www.dealabs.com</link>
+<item>
+<category><![CDATA[High-Tech]]></category>
+<pepper:merchant name="Example Shop" price="29,90€"/>
+<media:content medium="image" url="https://static.example.test/3000003.jpg" width="100" height="100"/>
+<title><![CDATA[Example Casque audio sans fil]]></title>
+<link>https://www.dealabs.com/bons-plans/example-casque-audio-3000003</link>
+</item>
+<item>
+<category><![CDATA[Maison & Habitat]]></category>
+<pepper:merchant name="Example Market" price="12€"/>
+<title><![CDATA[Example Lot de bougies parfumées]]></title>
+<link>https://www.dealabs.com/bons-plans/example-lot-de-bougies-3000004</link>
+</item>
+</channel>
+</rss>

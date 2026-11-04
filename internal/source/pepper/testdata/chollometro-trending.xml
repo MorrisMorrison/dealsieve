@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:media="http://search.yahoo.com/mrss/" xmlns:pepper="http://www.pepper.com/rss" version="2.0">
+<channel>
+<title>chollometro</title>
+<link>https://www.chollometro.com</link>
+<item>
+<category><![CDATA[Electrónica]]></category>
+<pepper:merchant name="Example Shop" price="16,80€"/>
+<media:content medium="image" url="https://static.example.test/2000001.jpg" width="100" height="100"/>
+<title><![CDATA[178° - Example Plancha de vapor con depósito]]></title>
+<link>https://www.chollometro.com/ofertas/example-plancha-de-vapor-2000001</link>
+</item>
+<item>
+<category><![CDATA[Hogar, vivienda y oficina]]></category>
+<pepper:merchant name="Example Market" price="279€"/>
+<title><![CDATA[73° - Example Silla de oficina ergonómica]]></title>
+<link>https://www.chollometro.com/ofertas/example-silla-de-oficina-2000002</link>
+</item>
+</channel>
+</rss>

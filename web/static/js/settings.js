@@ -4,7 +4,7 @@ import {
 } from './api.js';
 import { sentence } from './format.js';
 import { initTheme } from './theme.js';
-import { addTo, changeCount, clone, nextChannelName, removeFrom, TIMEZONES } from './settings-model.js';
+import { addTo, changeCount, clone, nextChannelName, removeFrom, TIMEZONES, withMinTemperature } from './settings-model.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -27,12 +27,12 @@ function h(tag, props = {}, ...kids) {
 const st = {
   saved: null, draft: null, version: 0, warnings: {}, judgeEnv: {},
   suggestions: [], history: [], categories: [],
-  errors: {}, addingChannel: false, stale: false,
+  sites: [], errors: {}, addingChannel: false, stale: false,
 };
 let shown = new Set();
 
 const sections = {
-  suggestions: renderSuggestions, watchlist: renderWatchlist, filters: renderFilters,
+  suggestions: renderSuggestions, watchlist: renderWatchlist, sources: renderSources, filters: renderFilters,
   recurrence: renderRecurrence, notifications: renderNotifications, history: renderHistory,
 };
 
@@ -199,6 +199,49 @@ function renderWatchlist() {
     placeholder: 'Add a keyword and press Enter', section: 'watchlist',
     set: (v) => { st.draft.watchlist = v; }, pred: under('watchlist'),
   })];
+}
+
+function renderSources() {
+  const doc = st.draft.sources;
+  const rows = st.sites.map((site) => {
+    const entry = () => doc[site.name] ?? { enabled: false };
+    const pred = under(`sources.${site.name}`);
+    const input = h('input', {
+      type: 'number', value: entry().min_temperature === undefined ? '' : String(entry().min_temperature),
+      placeholder: 'global',
+      attrs: { min: 0, step: 1, 'aria-label': `${site.label} minimum temperature` },
+      on: {
+        input: (e) => {
+          clearErrors(pred, input);
+          input.nextError?.remove();
+          input.nextError = null;
+          const v = input.validity;
+          if (v.badInput || v.stepMismatch) {
+            input.dataset.bad = '1';
+            input.classList.add('invalid');
+            input.nextError = h('div', { className: 'field-error', textContent: 'Enter a whole number' });
+            input.closest('.site').append(input.nextError);
+            return;
+          }
+          delete input.dataset.bad;
+          input.classList.remove('invalid');
+          doc[site.name] = withMinTemperature(entry(), e.target.value);
+          updateBar();
+        },
+      },
+    });
+    if (Object.keys(st.errors).some(pred)) input.classList.add('invalid');
+    const box = h('input', {
+      type: 'checkbox', checked: !!entry().enabled,
+      on: { change: (e) => { doc[site.name] = { ...entry(), enabled: e.target.checked }; updateBar(); } },
+    });
+    return h('div', { className: 'site' },
+      h('label', { className: 'site-name' }, box, ' ', site.label, ' ',
+        h('span', { className: 'meta', textContent: site.domain })),
+      h('span', { className: 'site-min' }, input, h('span', { className: 'suffix', textContent: '°' })),
+      errorNodes(pred));
+  });
+  return [h('div', { className: 'sites' }, rows), errorNodes(exact('sources'))];
 }
 
 function renderFilters() {
@@ -610,6 +653,7 @@ async function reload() {
 
 function adopt(doc) {
   st.saved = doc.settings;
+  st.sites = doc.sites || st.sites;
   st.draft = clone(doc.settings);
   st.version = doc.version;
   st.warnings = doc.warnings || {};

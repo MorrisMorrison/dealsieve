@@ -102,7 +102,7 @@ func TestCategories(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	got, err := s.Categories(ctx)
+	got, err := s.Categories(ctx, nil)
 	if err != nil || !slices.Equal(got, []string{"Elektronik", "Reisen"}) {
 		t.Errorf("categories = %q, %v", got, err)
 	}

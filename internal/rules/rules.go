@@ -23,6 +23,7 @@ type Deal struct {
 	Title       string
 	Merchant    string
 	Category    string
+	Source      string
 	Fingerprint string
 	Temperature *int
 	InTrending  bool
@@ -48,6 +49,7 @@ type Result struct {
 type Engine struct {
 	minTemperature  int
 	overrides       map[string]int
+	sourceMins      map[string]int
 	mutedCategories map[string]bool
 	mutedMerchants  map[string]bool
 	blockKeywords   []string
@@ -56,10 +58,11 @@ type Engine struct {
 	maxSeen         int
 }
 
-func New(r settings.Rules, watchlist []string) *Engine {
+func New(r settings.Rules, watchlist []string, sourceMins map[string]int) *Engine {
 	e := &Engine{
 		minTemperature:  r.MinTemperature,
 		overrides:       make(map[string]int, len(r.CategoryOverrides)),
+		sourceMins:      make(map[string]int, len(sourceMins)),
 		mutedCategories: lowerSet(r.MutedCategories),
 		mutedMerchants:  lowerSet(r.MutedMerchants),
 		blockKeywords:   lowerAll(r.BlockKeywords),
@@ -69,6 +72,9 @@ func New(r settings.Rules, watchlist []string) *Engine {
 	}
 	for k, v := range r.CategoryOverrides {
 		e.overrides[strings.ToLower(k)] = v
+	}
+	for k, v := range sourceMins {
+		e.sourceMins[k] = v
 	}
 	return e
 }
@@ -122,7 +128,10 @@ func (e *Engine) blockReason(d Deal, f Facts, title string, watchlistHit bool) (
 		return "", false
 	}
 	if d.Temperature != nil {
-		if minimum := e.minTemperatureFor(category); *d.Temperature < minimum {
+		if minimum, by := e.minTemperatureFor(category, d.Source); *d.Temperature < minimum {
+			if by != "" {
+				return fmt.Sprintf("too cold: %d° < %d° (%s minimum)", *d.Temperature, minimum, settings.SourceLabel(by)), true
+			}
 			return fmt.Sprintf("too cold: %d° < %d°", *d.Temperature, minimum), true
 		}
 	}
@@ -137,9 +146,15 @@ func (e *Engine) blockReason(d Deal, f Facts, title string, watchlistHit bool) (
 func (e *Engine) passReasons(d Deal, f Facts, category string, watchlistHit bool) []string {
 	var out []string
 	if d.Temperature != nil {
-		if minimum := e.minTemperatureFor(category); *d.Temperature >= minimum {
+		minimum, by := e.minTemperatureFor(category, d.Source)
+		switch {
+		case *d.Temperature >= minimum && by != "":
+			out = append(out, fmt.Sprintf("hot: %d° (%s minimum %d°)", *d.Temperature, settings.SourceLabel(by), minimum))
+		case *d.Temperature >= minimum:
 			out = append(out, fmt.Sprintf("hot: %d° (minimum %d°)", *d.Temperature, minimum))
-		} else {
+		case by != "":
+			out = append(out, fmt.Sprintf("below the %s minimum of %d°, kept for your watchlist", settings.SourceLabel(by), minimum))
+		default:
 			out = append(out, fmt.Sprintf("below the %d° minimum, kept for your watchlist", minimum))
 		}
 	}
@@ -155,11 +170,17 @@ func (e *Engine) passReasons(d Deal, f Facts, category string, watchlistHit bool
 	return out
 }
 
-func (e *Engine) minTemperatureFor(category string) int {
+// minTemperatureFor returns the minimum for a deal and, when the source's own
+// minimum decided, the source's name: a category override wins, then the
+// source's minimum, then the global one.
+func (e *Engine) minTemperatureFor(category, src string) (int, string) {
 	if v, ok := e.overrides[category]; ok {
-		return v
+		return v, ""
 	}
-	return e.minTemperature
+	if v, ok := e.sourceMins[src]; ok {
+		return v, src
+	}
+	return e.minTemperature, ""
 }
 
 func firstContained(title string, keywords []string) (string, bool) {

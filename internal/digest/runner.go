@@ -77,7 +77,7 @@ func (r *Runner) Tick(ctx context.Context) {
 		if !Due(now, s.Digest, last, hasLast) {
 			continue
 		}
-		msg, ids, err := r.compose(ctx, ch, s.Digest, last, hasLast, now)
+		msg, ids, err := r.compose(ctx, ch, s, last, hasLast, now)
 		if err != nil {
 			r.Log.Error("digest deals", "channel", ch, "err", err)
 			continue
@@ -136,7 +136,7 @@ func (r *Runner) SendTest(ctx context.Context) []TestResult {
 		var msg notify.Message
 		var ids []string
 		if err == nil {
-			msg, ids, err = r.compose(ctx, ch, s.Digest, last, hasLast, now)
+			msg, ids, err = r.compose(ctx, ch, s, last, hasLast, now)
 		}
 		switch {
 		case err != nil:
@@ -168,8 +168,9 @@ func windowStart(last time.Time, hasLast bool, now time.Time) time.Time {
 
 // compose builds the channel's digest and returns the ids of the deals it
 // lists; no ids means there is nothing to send.
-func (r *Runner) compose(ctx context.Context, ch string, d settings.Digest, last time.Time, hasLast bool, now time.Time) (notify.Message, []string, error) {
-	hits, top, err := r.Store.DigestDeals(ctx, ch, windowStart(last, hasLast, now), d.Top)
+func (r *Runner) compose(ctx context.Context, ch string, s settings.Settings, last time.Time, hasLast bool, now time.Time) (notify.Message, []string, error) {
+	sources := s.EnabledSources()
+	hits, top, err := r.Store.DigestDeals(ctx, ch, sources, windowStart(last, hasLast, now), s.Digest.Top)
 	if err != nil {
 		return notify.Message{}, nil, err
 	}
@@ -184,13 +185,19 @@ func (r *Runner) compose(ctx context.Context, ch string, d settings.Digest, last
 	if err != nil {
 		return notify.Message{}, nil, err
 	}
-	return Compose(items(hits, ops), items(top, ops), r.Env.PublicURL), ids, nil
+	multi := len(sources) > 1
+	return Compose(items(hits, ops, multi), items(top, ops, multi), r.Env.PublicURL), ids, nil
 }
 
-func items(recs []store.DealRecord, ops map[string]store.OpinionRecord) []Item {
+// items adds the judge's opinion and, only when several sources are on, the
+// deal's site.
+func items(recs []store.DealRecord, ops map[string]store.OpinionRecord, multi bool) []Item {
 	out := make([]Item, len(recs))
 	for i, rec := range recs {
 		out[i] = Item{Title: rec.Title, URL: rec.URL, Price: rec.Price, Temperature: rec.Temperature}
+		if multi {
+			out[i].Source = settings.SourceLabel(rec.Source)
+		}
 		if o, ok := ops[rec.ID]; ok {
 			out[i].Opinion = o.Rating + ": " + o.Reason
 		}

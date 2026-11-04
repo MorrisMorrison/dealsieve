@@ -9,18 +9,22 @@ const detail = document.getElementById('detail');
 const dealsPanel = document.getElementById('deals-panel');
 const banner = document.getElementById('suggestion-banner');
 const category = document.getElementById('category');
+const sourceFilter = document.getElementById('source-filter');
 const search = document.getElementById('search');
 const tabs = [...document.querySelectorAll('[role=tab]')];
 const narrow = matchMedia('(max-width: 860px)');
 
-const state = { view: 'passed', deals: [], selectedId: null };
+const state = { view: 'passed', deals: [], selectedId: null, sources: [], source: '' };
+
+// The label and the filter only make sense with more than one site enabled.
+const multiSource = () => state.sources.length > 1;
 
 let loadSeq = 0; // a slow response must not overwrite a newer load
 
 async function load() {
   const seq = ++loadSeq;
   try {
-    const { deals, counts } = await api.getDeals(state.view);
+    const { deals, counts } = await api.getDeals(state.view, state.source);
     if (seq !== loadSeq) return;
     state.deals = deals;
     renderCounts(counts);
@@ -28,6 +32,14 @@ async function load() {
     show();
   } catch (err) {
     if (seq !== loadSeq) return;
+    if (err.status === 400 && state.source) {
+      // The chosen source was turned off since the last status; start again from all sources.
+      state.source = '';
+      sourceFilter.value = '';
+      refreshStatus(); // rebuilds the filter if the sources changed
+      load();
+      return;
+    }
     renderError(list, err);
     return;
   }
@@ -53,13 +65,13 @@ function visible() {
 function show() {
   const deals = visible();
   if (!deals.some((d) => d.id === state.selectedId)) state.selectedId = deals[0]?.id ?? null;
-  renderList(list, deals, state.selectedId, select);
+  renderList(list, deals, state.selectedId, select, { showSource: multiSource() });
   showDetail(deals);
 }
 
 function showDetail(deals = visible()) {
   const deal = deals.find((d) => d.id === state.selectedId);
-  renderDetail(detail, deal, { onAction: act, onUndo: undo, onBack: closeSheet });
+  renderDetail(detail, deal, { onAction: act, onUndo: undo, onBack: closeSheet, showSource: multiSource() });
   const item = deal && list.querySelector(`[data-id="${CSS.escape(deal.id)}"]`);
   if (item) list.setAttribute('aria-activedescendant', item.id);
   else list.removeAttribute('aria-activedescendant');
@@ -113,9 +125,30 @@ async function undo(kind, deal) {
   }
 }
 
+let filterKey = null;
+
+// Fills the source filter; returns true when the chosen source is gone and was reset.
+function updateSourceFilter(sources) {
+  state.sources = sources;
+  const gone = state.source !== '' && (sources.length < 2 || !sources.some((s) => s.name === state.source));
+  if (gone) state.source = '';
+  sourceFilter.hidden = sources.length < 2;
+  const key = JSON.stringify(sources.map((s) => [s.name, s.label]));
+  if (key !== filterKey) { // rebuilding would close an open dropdown
+    filterKey = key;
+    sourceFilter.replaceChildren(new Option('All sources', ''), ...sources.map((s) => new Option(s.label, s.name)));
+  }
+  sourceFilter.value = state.source;
+  return gone;
+}
+
 async function refreshStatus() {
   try {
-    renderStatus(document.getElementById('status'), await api.getStatus());
+    const { feeds, sources } = await api.getStatus();
+    renderStatus(document.getElementById('status'), feeds, { showSource: sources.length > 1 });
+    const before = multiSource();
+    if (updateSourceFilter(sources)) load();
+    else if (before !== multiSource()) show();
   } catch {
     // The list shows request errors; the status line keeps its last value.
   }
@@ -157,6 +190,12 @@ document.addEventListener('keydown', (e) => {
 });
 
 category.addEventListener('change', show);
+sourceFilter.addEventListener('change', () => {
+  state.source = sourceFilter.value;
+  state.selectedId = null;
+  closeSheet();
+  load();
+});
 search.addEventListener('input', show);
 narrow.addEventListener('change', closeSheet);
 initTheme(document.getElementById('theme-toggle'));

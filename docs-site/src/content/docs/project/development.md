@@ -27,7 +27,7 @@ Running it needs nothing but a data directory: it writes `./data/dealsieve.db` (
 | `internal/settings/` | The user settings document: defaults, validation, change summaries |
 | `internal/settingsvc/` | Saves, undoes and applies settings; versions and suggestions |
 | `internal/suggest/` | Mute suggestions computed from Hide and Junk clicks |
-| `internal/source/` | Deal and feed types; `mydealz/` is the RSS adapter |
+| `internal/source/` | Deal and feed types; `pepper/` is the RSS adapter for mydealz and the other Pepper sites |
 | `internal/fingerprint/` | Title cleaning and the fingerprint key |
 | `internal/rules/` | The rule engine: a pure function from deal and facts to a result |
 | `internal/pipeline/` | Ingest, recompute and prune |

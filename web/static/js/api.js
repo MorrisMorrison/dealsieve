@@ -13,11 +13,11 @@ async function request(method, path, body) {
   return res.status === 204 ? null : res.json();
 }
 
-// Resolves to { deals, counts } where counts has passed/watchlist/blocked.
-export const getDeals = (view) => request('GET', `/api/deals?view=${encodeURIComponent(view)}`);
+// Resolves to { deals, counts } where counts has passed/watchlist/blocked. `source` is optional.
+export const getDeals = (view, source) => request('GET', `/api/deals?view=${encodeURIComponent(view)}${source ? `&source=${encodeURIComponent(source)}` : ''}`);
 export const addAction = (kind, dealId) => request('POST', '/api/actions', { kind, deal_id: dealId });
 export const undoAction = (kind, dealId) => request('POST', '/api/actions/undo', { kind, deal_id: dealId });
-export const getStatus = () => request('GET', '/api/status').then((r) => r.feeds);
+export const getStatus = () => request('GET', '/api/status').then((r) => ({ feeds: r.feeds, sources: r.sources ?? [] }));
 
 export const getSettings = () => request('GET', '/api/settings');
 export const putSettings = (version, settings) => request('PUT', '/api/settings', { version, settings });

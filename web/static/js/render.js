@@ -10,7 +10,7 @@ const UNDO_BY_REASON = {
 
 const FEED_LABELS = { trending: 'trending', new: 'new deals' };
 
-export function renderList(list, deals, selectedId, onSelect) {
+export function renderList(list, deals, selectedId, onSelect, { showSource = false } = {}) {
   if (deals.length === 0) {
     list.replaceChildren(el('li', 'empty', 'Nothing here right now.'));
     return;
@@ -49,6 +49,7 @@ export function renderList(list, deals, selectedId, onSelect) {
     }
     item.querySelector('.price').textContent = deal.price;
     item.querySelector('.merchant').textContent = deal.merchant;
+    fillSource(item.querySelector('.source'), deal, showSource);
     const chip = item.querySelector('.chip');
     if (deal.decision === 'block') {
       chip.textContent = sentence(deal.reasons[0] ?? 'blocked');
@@ -73,7 +74,7 @@ export function renderList(list, deals, selectedId, onSelect) {
   }));
 }
 
-export function renderDetail(panel, deal, { onAction, onUndo, onBack }) {
+export function renderDetail(panel, deal, { onAction, onUndo, onBack, showSource = false }) {
   if (!deal) {
     panel.replaceChildren();
     return;
@@ -83,6 +84,8 @@ export function renderDetail(panel, deal, { onAction, onUndo, onBack }) {
   node.querySelector('.detail-title').textContent = deal.title;
   node.querySelector('.detail-price .price').textContent = deal.price;
   node.querySelector('.detail-price .merchant').textContent = deal.merchant ? `at ${deal.merchant}` : '';
+
+  fillSource(node.querySelector('.source'), deal, showSource);
 
   const level = heat(deal.temperature);
   const temp = node.querySelector('.heat .temp');
@@ -166,13 +169,14 @@ function renderHistory(section, history) {
   section.querySelector('.history-more').hidden = history.count <= history.matches.length;
 }
 
-export function renderStatus(node, feeds) {
+// showSource prefixes a stale feed with its source label; only useful with several sources on.
+export function renderStatus(node, feeds, { showSource = false } = {}) {
   const stale = feeds.filter((f) => f.stale);
   node.classList.toggle('bad', stale.length > 0);
   node.classList.toggle('ok', stale.length === 0);
   if (stale.length > 0) {
     node.textContent = stale
-      .map((f) => `${f.feed} feed stale: last update ${ago(f.last_success)}${f.last_error ? ` (${f.last_error})` : ''}`)
+      .map((f) => `${showSource && f.label ? `${f.label} ` : ''}${f.feed} feed stale: last update ${ago(f.last_success)}${f.last_error ? ` (${f.last_error})` : ''}`)
       .join(' · ');
     return;
   }
@@ -197,6 +201,12 @@ export function fillCategories(select, deals) {
     .sort((a, b) => a.localeCompare(b, 'de'));
   select.replaceChildren(new Option('All categories', ''), ...categories.map((c) => new Option(c, c)));
   select.value = categories.includes(current) ? current : '';
+}
+
+function fillSource(node, deal, show) {
+  const text = show ? deal.source_label || deal.source || '' : '';
+  node.textContent = text;
+  node.hidden = !text;
 }
 
 function cssSafe(id) {

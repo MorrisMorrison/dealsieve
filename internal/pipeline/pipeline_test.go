@@ -66,7 +66,7 @@ func newHarness(t *testing.T, when settings.When) *harness {
 	push := &fakeNotifier{}
 	p := &Pipeline{
 		Store:     st,
-		Engine:    rules.New(baseRules, []string{"oled"}),
+		Engine:    rules.New(baseRules, []string{"oled"}, nil),
 		Notify:    []settings.NotifyRule{{When: when, Channels: []string{"push"}}},
 		Notifiers: map[string]notify.Notifier{"push": push},
 		Now:       func() time.Time { return now },
@@ -362,6 +362,80 @@ func TestRecurrenceIsNotRetroactive(t *testing.T) {
 	}
 	if v := h.verdict(t, "mydealz:3"); v.Decision != "block" {
 		t.Errorf("third = %+v, want recurring block", v)
+	}
+}
+
+func dealFrom(src, id, title string, temp *int) source.Deal {
+	d := deal(id, title, temp)
+	d.ID, d.Source = src+":"+id, src
+	return d
+}
+
+func enabled(names ...string) settings.Settings {
+	s := settings.Defaults()
+	s.Sources = map[string]settings.Source{}
+	for _, n := range names {
+		s.Sources[n] = settings.Source{Enabled: true}
+	}
+	return s
+}
+
+func TestNotificationNamesTheSourceOnlyWithSeveralSources(t *testing.T) {
+	h := newHarness(t, settings.When{Watchlist: true})
+	h.p.ApplySettings(enabled("mydealz", "hotukdeals"))
+	h.p.Notify = []settings.NotifyRule{{When: settings.When{MinTemperature: 100}, Channels: []string{"push"}}}
+	h.p.Notifiers = map[string]notify.Notifier{"push": h.push}
+	h.ingest(t, source.FeedTrending, dealFrom("hotukdeals", "1", "Example Laptop", intp(150)))
+	if len(h.push.sent) != 1 || h.push.sent[0].Title != "hotukdeals · Example Laptop" {
+		t.Fatalf("sent = %+v", h.push.sent)
+	}
+
+	h.p.ApplySettings(enabled("mydealz"))
+	h.p.Notify = []settings.NotifyRule{{When: settings.When{MinTemperature: 100}, Channels: []string{"push"}}}
+	h.p.Notifiers = map[string]notify.Notifier{"push": h.push}
+	h.ingest(t, source.FeedTrending, deal("2", "Example Phone", intp(150)))
+	if len(h.push.sent) != 2 || h.push.sent[1].Title != "Example Phone" {
+		t.Errorf("sent = %+v, want an unlabelled title with one source", h.push.sent)
+	}
+}
+
+func TestPendingNotificationOfATurnedOffSourceIsNotRetried(t *testing.T) {
+	h := newHarness(t, settings.When{MinTemperature: 100})
+	h.push.fail = true
+	h.ingest(t, source.FeedTrending, dealFrom("hotukdeals", "1", "Example Laptop", intp(150)))
+	if _, attempts, _ := h.st.NotificationState(ctx, "hotukdeals:1", "push"); attempts != 1 {
+		t.Fatalf("attempts = %d, want 1", attempts)
+	}
+
+	h.push.fail = false
+	h.p.ApplySettings(enabled("mydealz"))
+	h.p.Notify = []settings.NotifyRule{{When: settings.When{MinTemperature: 100}, Channels: []string{"push"}}}
+	h.p.Notifiers = map[string]notify.Notifier{"push": h.push}
+	h.ingest(t, source.FeedTrending)
+	if n := h.push.count(); n != 0 {
+		t.Errorf("sent %d for a turned-off source, want 0", n)
+	}
+	if _, attempts, _ := h.st.NotificationState(ctx, "hotukdeals:1", "push"); attempts != 1 {
+		t.Errorf("attempts = %d, want still 1", attempts)
+	}
+}
+
+func TestIngestSkipsDealsOfTurnedOffSources(t *testing.T) {
+	h := newHarness(t, settings.When{MinTemperature: 100})
+	h.p.ApplySettings(enabled("mydealz"))
+	h.p.Notify = []settings.NotifyRule{{When: settings.When{MinTemperature: 100}, Channels: []string{"push"}}}
+	h.p.Notifiers = map[string]notify.Notifier{"push": h.push}
+	h.ingest(t, source.FeedTrending,
+		dealFrom("hotukdeals", "1", "Example Laptop", intp(150)),
+		deal("2", "Example Phone", intp(150)))
+	if _, err := h.st.GetDeal(ctx, "hotukdeals:1"); err == nil {
+		t.Error("deal of a turned-off source was stored")
+	}
+	if _, err := h.st.GetDeal(ctx, "mydealz:2"); err != nil {
+		t.Errorf("deal of an enabled source: %v", err)
+	}
+	if n := h.push.count(); n != 1 {
+		t.Errorf("sent %d, want 1", n)
 	}
 }
 

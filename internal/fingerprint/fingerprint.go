@@ -8,6 +8,8 @@ import (
 	"unicode"
 )
 
+// stopwords are the function words of the sites' languages (German, English,
+// French, Spanish, Polish) that carry no product meaning.
 var stopwords = map[string]bool{
 	// German
 	"ab": true, "am": true, "an": true, "auf": true, "aus": true, "bei": true, "bis": true,
@@ -18,6 +20,17 @@ var stopwords = map[string]bool{
 	// English
 	"and": true, "at": true, "for": true, "from": true, "of": true, "on": true, "only": true,
 	"or": true, "the": true, "to": true, "with": true, "now": true,
+	"by": true, "via": true, "per": true, "off": true,
+	// French
+	"le": true, "la": true, "les": true, "du": true, "et": true, "pour": true, "avec": true,
+	"au": true, "aux": true, "sur": true, "par": true, "chez": true, "dans": true, "une": true,
+	// Spanish
+	"el": true, "los": true, "las": true, "del": true, "con": true, "por": true, "para": true, "al": true,
+	// French and Spanish
+	"de": true, "en": true,
+	// Polish
+	"na": true, "do": true, "dla": true, "od": true, "ze": true, "za": true, "po": true,
+	"oraz": true, "lub": true, "przy": true,
 }
 
 // units are what follows a number in sizes, counts and specs ("16gb", "2x",
@@ -106,8 +119,9 @@ func Of(merchant, title string) (clean, key string) {
 }
 
 // RekeyOld converts a key made by an older CleanTitle, which dropped every
-// token containing a digit, to the current rules. Such keys have no digits,
-// so only the words the current rules drop (standalone size units) change.
+// token containing a digit and fewer stopwords, to the current rules. Such keys
+// have no digits, so only the words the current rules drop change: standalone
+// size units and stopwords.
 func RekeyOld(key string) string {
 	merchant, words, ok := strings.Cut(key, "|")
 	if !ok {
@@ -115,7 +129,7 @@ func RekeyOld(key string) string {
 	}
 	kept := strings.Fields(words)[:0]
 	for _, w := range strings.Fields(words) {
-		if !isQuantity(w) {
+		if !isQuantity(w) && !stopwords[w] {
 			kept = append(kept, w)
 		}
 	}

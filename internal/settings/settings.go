@@ -31,6 +31,7 @@ type Settings struct {
 	Suggestions Suggestions        `json:"suggestions"`
 	Digest      Digest             `json:"digest"`
 	Judge       Judge              `json:"judge"`
+	Sources     map[string]Source  `json:"sources"`
 }
 
 // Judge is the optional LLM opinion on passed deals. The endpoint and the key
@@ -170,6 +171,7 @@ func Defaults() Settings {
 		Suggestions: Suggestions{MinCount: 3, WindowDays: 30},
 		Digest:      Digest{Time: "18:00", Timezone: "Europe/Berlin", Top: 10, Channels: []string{}},
 		Judge:       Judge{DailyLimit: 200},
+		Sources:     defaultSources(),
 	}
 }
 
@@ -221,6 +223,10 @@ func (s Settings) Normalize() Settings {
 	out.Digest.Channels = cleanList(s.Digest.Channels)
 	out.Judge.Model = strings.TrimSpace(s.Judge.Model)
 	out.Judge.Instructions = strings.TrimSpace(s.Judge.Instructions)
+	out.Sources = sourcesOff()
+	for name, src := range s.Sources {
+		out.Sources[strings.ToLower(strings.TrimSpace(name))] = src
+	}
 	return out
 }
 
@@ -307,6 +313,21 @@ func (s Settings) Validate() map[string]string {
 		if _, ok := s.Channels[c]; !ok {
 			errs[fmt.Sprintf("digest.channels[%d]", i)] = fmt.Sprintf("unknown channel %q", c)
 		}
+	}
+	known := map[string]bool{}
+	for _, n := range SourceNames {
+		known[n] = true
+	}
+	for name, src := range s.Sources {
+		if !known[name] {
+			errs["sources."+name] = "unknown source"
+		}
+		if src.MinTemperature != nil && *src.MinTemperature < 0 {
+			errs["sources."+name+".min_temperature"] = "must be 0° or more"
+		}
+	}
+	if len(s.EnabledSources()) == 0 {
+		errs["sources"] = "turn at least one source on"
 	}
 	for k, v := range ValidateJudge(s.Judge, s.Judge.Enabled) {
 		errs[k] = v

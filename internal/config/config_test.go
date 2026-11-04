@@ -1,6 +1,7 @@
 package config
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -13,9 +14,10 @@ func TestDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Env{DataDir: "./data", Listen: ":8080", LogFormat: "text", JudgeURL: "https://openrouter.ai/api/v1", MydealzURL: "https://www.mydealz.de",
+	want := Env{DataDir: "./data", Listen: ":8080", LogFormat: "text", JudgeURL: "https://openrouter.ai/api/v1",
 		PollTrending: 5 * time.Minute, PollNew: 2 * time.Minute}
-	if e != want {
+	e.SourceURLs = nil
+	if !reflect.DeepEqual(e, want) {
 		t.Errorf("env = %+v, want %+v", e, want)
 	}
 }
@@ -30,8 +32,12 @@ func TestOverrides(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := Env{DataDir: "/data", Listen: "127.0.0.1:9000", LogFormat: "json", TelegramToken: "tok", NtfyToken: "nt", JudgeURL: "https://openrouter.ai/api/v1",
-		MydealzURL: "http://127.0.0.1:1", PollTrending: 10 * time.Minute, PollNew: time.Minute}
-	if e != want {
+		PollTrending: 10 * time.Minute, PollNew: time.Minute}
+	if e.SourceURLs["mydealz"] != "http://127.0.0.1:1" {
+		t.Errorf("mydealz URL = %q", e.SourceURLs["mydealz"])
+	}
+	e.SourceURLs = nil
+	if !reflect.DeepEqual(e, want) {
 		t.Errorf("env = %+v, want %+v", e, want)
 	}
 }
@@ -90,5 +96,26 @@ func TestJudgeEnv(t *testing.T) {
 	env["DEALSIEVE_JUDGE_URL"] = "llm.example.test"
 	if _, err := FromEnv(func(k string) string { return env[k] }); err == nil {
 		t.Fatal("relative URL accepted")
+	}
+}
+
+func TestSourceURLs(t *testing.T) {
+	env := map[string]string{"DEALSIEVE_HOTUKDEALS_URL": "http://127.0.0.1:9999"}
+	e, err := FromEnv(func(k string) string { return env[k] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := e.SourceURLs["hotukdeals"]; got != "http://127.0.0.1:9999" {
+		t.Errorf("hotukdeals = %q", got)
+	}
+	if got := e.SourceURLs["pepperpl"]; got != "https://www.pepper.pl" {
+		t.Errorf("pepperpl default = %q", got)
+	}
+	if len(e.SourceURLs) != 6 {
+		t.Errorf("got %d source URLs, want 6", len(e.SourceURLs))
+	}
+	env["DEALSIEVE_DEALABS_URL"] = "ftp://example.test"
+	if _, err := FromEnv(func(k string) string { return env[k] }); err == nil || !strings.Contains(err.Error(), "DEALSIEVE_DEALABS_URL") {
+		t.Errorf("bad URL error = %v", err)
 	}
 }

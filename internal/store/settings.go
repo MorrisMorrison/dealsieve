@@ -146,8 +146,11 @@ func (s *Store) ClickedDealsSince(ctx context.Context, since time.Time) ([]Click
 	return out, rows.Err()
 }
 
-func (s *Store) Categories(ctx context.Context) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT category FROM deals WHERE category <> '' ORDER BY category`)
+// Categories lists the distinct categories of deals from sources; nil means
+// every source, an empty slice none.
+func (s *Store) Categories(ctx context.Context, sources []string) ([]string, error) {
+	filter, args := sourceFilter(sources)
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT d.category FROM deals d WHERE d.category <> ''`+filter+` ORDER BY d.category`, args...)
 	if err != nil {
 		return nil, err
 	}

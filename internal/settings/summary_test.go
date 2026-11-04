@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"maps"
 	"slices"
 	"testing"
 )
@@ -87,5 +88,22 @@ func TestSummarizeJudge(t *testing.T) {
 	off.Judge.Enabled = false
 	if got := Summarize(next, off); !slices.Equal(got, []string{"LLM judge off"}) {
 		t.Fatalf("off = %q", got)
+	}
+}
+
+func TestSummarizeSources(t *testing.T) {
+	prev := Defaults()
+	next := Defaults()
+	next.Sources = maps.Clone(prev.Sources)
+	min150 := 150
+	next.Sources["hotukdeals"] = Source{Enabled: true, MinTemperature: &min150}
+	got := Summarize(prev, next)
+	want := []string{"Sources: mydealz, hotukdeals", "hotukdeals minimum 150°"}
+	if !slices.Equal(got, want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	back := Summarize(next, prev)
+	if !slices.Contains(back, "hotukdeals minimum: global") || !slices.Contains(back, "Sources: mydealz") {
+		t.Errorf("reverse = %q", back)
 	}
 }
