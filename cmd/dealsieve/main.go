@@ -68,7 +68,18 @@ func run(ctx context.Context) error {
 	feedClient := &http.Client{Timeout: 30 * time.Second}
 	notifyClient := &http.Client{Timeout: 10 * time.Second}
 	pipe := &pipeline.Pipeline{Store: st, Env: env, HTTP: notifyClient, Now: time.Now, Log: log}
-	svc := &settingsvc.Service{Store: st, Apply: pipe, Now: time.Now}
+	ua := "dealsieve/" + version.Version + " (+" + repoURL + ")"
+	fetchers := map[string]source.Fetcher{}
+	for _, site := range pepper.Sites() {
+		fetchers[site.Name] = &pepper.Client{Site: site, BaseURL: env.SourceURLs[site.Name], UserAgent: ua, HTTP: feedClient, Log: log}
+	}
+	pl := poller.New(fetchers, pipe, map[source.Feed]time.Duration{
+		source.FeedTrending: env.PollTrending,
+		source.FeedNew:      env.PollNew,
+	}, log)
+	// Created before the service so that loading the settings also picks the
+	// sources the poller runs.
+	svc := &settingsvc.Service{Store: st, Apply: applyAll{pipe, pl}, Now: time.Now}
 	if err := svc.Load(ctx); err != nil {
 		return fmt.Errorf("load settings: %w", err)
 	}
@@ -89,18 +100,6 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("recompute verdicts: %w", err)
 	}
 
-	site, _ := pepper.Lookup("mydealz")
-	src := &pepper.Client{
-		Site:      site,
-		BaseURL:   env.SourceURLs[site.Name],
-		UserAgent: "dealsieve/" + version.Version + " (+" + repoURL + ")",
-		HTTP:      feedClient,
-		Log:       log,
-	}
-	pl := poller.New(src, pipe, map[source.Feed]time.Duration{
-		source.FeedTrending: env.PollTrending,
-		source.FeedNew:      env.PollNew,
-	}, log)
 	// Both must finish before the deferred st.Close(), or they hit a closed database.
 	var wg sync.WaitGroup
 	wg.Go(func() { pl.Run(ctx) })
@@ -138,6 +137,17 @@ func run(ctx context.Context) error {
 	cancel()
 	wg.Wait()
 	return srvErr
+}
+
+// applyAll puts settings into effect in the pipeline and the poller.
+type applyAll struct {
+	*pipeline.Pipeline
+	poller *poller.Poller
+}
+
+func (a applyAll) ApplySettings(s settings.Settings) {
+	a.Pipeline.ApplySettings(s)
+	a.poller.SetSources(s.EnabledSources())
 }
 
 func pruneLoop(ctx context.Context, pipe *pipeline.Pipeline, log *slog.Logger) {
