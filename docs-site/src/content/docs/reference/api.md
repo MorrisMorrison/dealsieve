@@ -16,6 +16,7 @@ The web page talks to the backend only through this JSON API. Errors are returne
 | `POST /api/settings/undo` | Restore the previous settings version. |
 | `GET /api/settings/history` | The last 20 settings versions. |
 | `POST /api/settings/test` | Send a test notification through a channel. |
+| `POST /api/settings/judge/test` | Ask the LLM judge about a made-up sample deal. |
 | `GET /api/suggestions` | Mute suggestions learned from Hide and Junk clicks. |
 | `POST /api/suggestions/apply` | Accept a suggestion. |
 | `POST /api/suggestions/dismiss` | Dismiss a suggestion for good. |
@@ -126,6 +127,18 @@ Body `{ "channel": { "type": "ntfy", "url": "https://ntfy.example.com", "topic":
 | `200 {"ok": true}` | The message was sent. |
 | `200 {"ok": false, "error": "ntfy: status 404"}` | Sending failed (only the status is shown, never the target's answer), or a Telegram channel has no token configured. |
 | `422 {"errors": {...}}` | The channel itself is invalid. |
+
+## `POST /api/settings/judge/test`
+
+Body `{ "judge": { "enabled": true, "model": "example/model", "daily_limit": 200, "instructions": "" } }`. Asks the model about a made-up sample deal using the judge block exactly as given (unsaved edits included) and the server's `DEALSIEVE_JUDGE_URL` and key. Does not count toward the daily limit.
+
+| Response | Meaning |
+|---|---|
+| `200 {"ok": true, "rating": "bad", "reason": "..."}` | The model answered. |
+| `200 {"ok": false, "error": "HTTP 401"}` | The call failed (only a short description, never the server's answer). |
+| `422 {"errors": {...}}` | The judge block is invalid, for example `judge.model` is empty. |
+
+`GET /api/settings` also returns `judge_env`: `{"url": "...", "key_set": true}`. The key itself is never returned. `GET /api/status` has a `judge` block with `calls_24h`, `last_error` and `last_error_at`, and each deal in `GET /api/deals` has an `opinion` (`rating`, `reason`, `model`, `judged_at`) once it has been judged.
 
 ## `GET /api/suggestions`
 

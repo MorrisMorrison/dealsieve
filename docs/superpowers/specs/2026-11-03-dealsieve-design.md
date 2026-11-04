@@ -292,7 +292,8 @@ behind a reverse proxy or auth layer if it isn't only on a private network.
 
 ## Later
 
-- **LLM judge** behind the `judge` interface, only for deals that already passed the rules.
+- ~~**LLM judge** behind the `judge` interface, only for deals that already passed the rules.~~
+  Done (issue #39); see `docs/superpowers/specs/2026-11-04-llm-judge-design.md`.
 - **Shop sources and price history** (phase B): own adapters, price history per product, real
   fake-discount detection.
 - Fuzzy fingerprint matching, hot config reload, more notifiers.
