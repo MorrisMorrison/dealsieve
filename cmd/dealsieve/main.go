@@ -22,6 +22,7 @@ import (
 	"github.com/MorrisMorrison/dealsieve/internal/judge"
 	"github.com/MorrisMorrison/dealsieve/internal/pipeline"
 	"github.com/MorrisMorrison/dealsieve/internal/poller"
+	"github.com/MorrisMorrison/dealsieve/internal/product"
 	"github.com/MorrisMorrison/dealsieve/internal/settings"
 	"github.com/MorrisMorrison/dealsieve/internal/settingsvc"
 	"github.com/MorrisMorrison/dealsieve/internal/source"
@@ -107,6 +108,14 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("rekey fingerprints: %w", err)
 	} else if n > 0 {
 		log.Info("updated fingerprints", "deals", n)
+	}
+
+	// Rebuild the price-history index: fills it for deals stored before it
+	// existed and applies parser changes to old deals.
+	if n, err := st.ReindexProducts(ctx, product.Index); err != nil {
+		return fmt.Errorf("index products: %w", err)
+	} else {
+		log.Info("indexed products for price history", "deals", n)
 	}
 
 	// Apply the stored settings to recent deals before serving them.

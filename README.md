@@ -58,6 +58,11 @@ heat curve and why it's there (or why it's blocked). Blocked deals stay visible 
 so you can see whether a rule is too strict. Use ↑/↓ to move through the list and Enter to open a
 deal; on a phone, a deal opens as a full-screen sheet.
 
+**Price history:** for products with a model code (`S24`, `7800X3D`, `WH-1000XM5`), the deal's
+panel shows the lowest price dealsieve has seen for the same product in the last 180 days, at any
+shop, with the matched deals listed so you can check them. The list marks best prices and how much
+more a deal costs than the lowest. It's information only and never blocks a deal.
+
 ## Watchlist and notifications
 
 Watchlist keywords are checked against every new deal as soon as it's posted, before it trends.

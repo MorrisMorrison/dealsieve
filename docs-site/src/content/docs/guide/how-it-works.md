@@ -76,6 +76,12 @@ Every deal has buttons to open it, *Hide*, *Junk*, *Mute category* and *Mute sho
 
 After any action or settings change, verdicts of the last 7 days are recomputed (and at startup). Recomputing never sends notifications.
 
+## Price history
+
+For a deal whose title has a model code (`S24`, `7800X3D`, or `iPhone 15` written with a space), dealsieve looks for other stored deals of the same product, at any shop, in the last 180 days: the same model codes; the same variant, accessory and condition words (`S24` is not `S24 Ultra`, `S24+`, a `S24 case` or a refurbished one; `PS5` is not `PS5 Pro`; a bundle, edition or digital version is its own product); no clash in size (`128GB` vs `256GB` never match, but an extra `139 cm` on one side is fine); no clash in plain numbers (`FC 25` is not `FC 26`); and mostly the same other words. Prices in the title and shop prefixes like `[Shop]` are ignored. Prices are compared only within one currency.
+
+The deal's panel then shows either **Best price in 180 days** or the lowest price seen ("Lowest seen: 549€ at Example Shop, Aug 2026 · now 40 € more"), with the matched deals listed so you can check them. The list shows a **Best price** or **+40 €** chip. Price history is information only: it never blocks or ranks a deal, and deals without a model code or a price have none.
+
 ## The page
 
 The page is an inbox: a list of deals, with the selected deal and the reason for every decision in a detail panel. Tabs for passed deals, watchlist hits and blocked deals show their counts. Feed health sits in a status line in the header and turns red when a feed has not been polled successfully for three times its interval. The gear in the header opens the Settings page. On phones the detail opens as a full-screen sheet. Keyboard: ↑/↓ or j/k move through the list, Enter opens a deal, Esc closes the sheet. It follows your system's light or dark theme.
@@ -85,5 +91,5 @@ The page has **no login**. Keep it on a private network or behind a reverse prox
 ## What dealsieve does not do
 
 - It does not detect fake "before" prices, since the feeds carry no old price.
-- It has no LLM judgement yet (there is a placeholder interface).
+- It does not know prices outside its own feeds: price history only covers deals dealsieve stored itself, and only products with a model code.
 - It does not hot-reload environment variables (poll intervals, secrets); those apply on restart.

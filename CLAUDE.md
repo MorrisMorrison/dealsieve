@@ -15,12 +15,13 @@ dealsieve is a small self-hosted filter for deal feeds. One Go binary polls a so
 | `internal/suggest/` | Pure: mute suggestions from Hide/Junk clicks, settings and dismissals |
 | `internal/source/` | `Deal`, `Feed` and the `Fetcher` interface; `source/pepper/` is the RSS adapter (fixtures in `testdata/`) |
 | `internal/fingerprint/` | `CleanTitle` + `Key`: merchant plus sorted distinct title words without plain numbers or sizes (`16gb`, `2x`); model codes like `s24` stay. Re-posts of the same offer share a key |
+| `internal/product/` | Pure: `ParsePrice` (cents + currency from `1.449€`, `£12.99`), `Of`/`Same` (same product = identical model codes (spaced `iPhone 15` as fallback), the same variant/accessory/condition words, no size conflict per unit, ≥ 60% shared other words), `Compare` (price history for one deal) |
 | `internal/rules/` | The rule engine: `Evaluate(Deal, Facts) Result` — pure, no I/O |
 | `internal/pipeline/` | Ingest (store → evaluate → save verdict → notify), `RecomputeRecent` after a user action, `Prune`; serialised by one mutex |
 | `internal/poller/` | One loop per source and feed with its own interval, backoff on failures (capped at 30 min), per-feed status for the page |
 | `internal/digest/` | Daily digest: `Due`, `Compose`, and the `Runner` that sends due digests every minute outside the pipeline lock; per-channel window ends in `digest_state`, deals already listed per channel in `digest_sent` |
 | `internal/notify/` | `Notifier` interface, ntfy and Telegram implementations |
-| `internal/store/` | SQLite (modernc, pure Go): deals, temperature snapshots, verdicts, actions, notification bookkeeping; numbered migrations in `migrations/` tracked by `PRAGMA user_version` |
+| `internal/store/` | SQLite (modernc, pure Go): deals, temperature snapshots, verdicts, actions, notification bookkeeping, price-history index (`deal_products`); numbered migrations in `migrations/` tracked by `PRAGMA user_version` |
 | `internal/api/` | `net/http` mux: JSON API (`/api/deals`, `/api/actions`, `/api/settings*` (incl. `POST /api/settings/judge/test`), `/api/suggestions*`, `/api/categories`, `/api/status`), `/health`, the embedded pages |
 | `internal/judge/` | LLM judge: OpenAI-compatible client, prompt/reply parsing, the background `Runner` |
 | `internal/version/` | `Version`, stamped with `-ldflags -X` from the `VERSION` build arg |
@@ -56,6 +57,7 @@ Running it needs nothing but a data dir (it writes `./data/dealsieve.db`, git-ig
 - **Keywords match the raw lowercased title**, not the cleaned one (cleaning drops numbers like `5080`).
 - **Fingerprints:** changing `CleanTitle`/`Key` changes every stored fingerprint's meaning (recurrence counts and junk actions are keyed by it). Treat it as a migration: say so in the PR and decide what happens to existing rows. `Store.Rekey` runs at startup and re-keys deals and junk actions to the current rules.
 - **Recurrence counts only the same source:** `CountRecurrence` ignores deals from other sources (the same offer on two sites is not a repeat); Junk, Hide, the watchlist, mutes, keywords and category overrides apply across sources. A new Pepper site is a row in `pepper.sites`, a name in `settings.SourceNames` (plus a label if it differs), fixtures in `internal/source/pepper/testdata/` and a docs line.
+- **Price history is information only.** It never changes a verdict, score, notification or the digest. `deal_products` is rebuilt from all deals at startup (`ReindexProducts`), so a parser or matching change needs no migration.
 - **Recurrence only looks back:** `CountRecurrence` counts deals with the same fingerprint first seen *before* the deal (same-poll ties by id), inside the window ending at its own first sighting, so a recompute never turns an earlier pass into "recurring".
 - **Verdicts are recomputed** for the last 7 days after every action and after every settings change (and at startup). Recompute never notifies.
 - **Notifications:** at most one successful send per (deal, channel), up to 3 attempts, failed ones retried on later polls. Keep that bookkeeping in `notifications_sent`.

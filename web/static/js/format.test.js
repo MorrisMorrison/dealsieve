@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ago, age, clock, heat, ratingMark, sentence } from './format.js';
+import { ago, age, clock, heat, money, monthYear, ratingMark, sentence } from './format.js';
 
 const now = Date.parse('2026-11-03T12:00:00Z');
 
@@ -45,4 +45,15 @@ test('ratingMark', () => {
   assert.equal(ratingMark('great'), null);
   assert.equal(ratingMark('toString'), null);
   assert.equal(ratingMark(undefined), null);
+});
+
+test('money', () => {
+  assert.equal(money(4000, 'EUR', 'de-DE'), '40 €');
+  assert.equal(money(129999, 'EUR', 'de-DE'), '1.299,99 €');
+  assert.equal(money(1250, 'GBP', 'en-GB'), '£12.50');
+});
+
+test('monthYear', () => {
+  assert.equal(monthYear('2026-08-14T09:12:00Z', 'en-GB'), 'Aug 2026');
+  assert.equal(monthYear('', 'en-GB'), '');
 });

@@ -16,6 +16,7 @@ import (
 	"github.com/MorrisMorrison/dealsieve/internal/digest"
 	"github.com/MorrisMorrison/dealsieve/internal/judge"
 	"github.com/MorrisMorrison/dealsieve/internal/poller"
+	"github.com/MorrisMorrison/dealsieve/internal/product"
 	"github.com/MorrisMorrison/dealsieve/internal/settings"
 	"github.com/MorrisMorrison/dealsieve/internal/settingsvc"
 	"github.com/MorrisMorrison/dealsieve/internal/store"
@@ -81,26 +82,27 @@ func securityHeaders(next http.Handler) http.Handler {
 }
 
 type dealJSON struct {
-	ID           string       `json:"id"`
-	Source       string       `json:"source"`
-	SourceLabel  string       `json:"source_label"`
-	URL          string       `json:"url"`
-	Title        string       `json:"title"`
-	Merchant     string       `json:"merchant"`
-	Price        string       `json:"price"`
-	Category     string       `json:"category"`
-	ImageURL     string       `json:"image_url"`
-	Temperature  *int         `json:"temperature"`
-	Temperatures []int        `json:"temperatures"`
-	FirstSeen    time.Time    `json:"first_seen"`
-	LastSeen     time.Time    `json:"last_seen"`
-	InTrending   bool         `json:"in_trending"`
-	InNew        bool         `json:"in_new"`
-	Decision     string       `json:"decision"`
-	Score        int          `json:"score"`
-	WatchlistHit bool         `json:"watchlist_hit"`
-	Reasons      []string     `json:"reasons"`
-	Opinion      *opinionJSON `json:"opinion"`
+	ID           string           `json:"id"`
+	Source       string           `json:"source"`
+	SourceLabel  string           `json:"source_label"`
+	URL          string           `json:"url"`
+	Title        string           `json:"title"`
+	Merchant     string           `json:"merchant"`
+	Price        string           `json:"price"`
+	Category     string           `json:"category"`
+	ImageURL     string           `json:"image_url"`
+	Temperature  *int             `json:"temperature"`
+	Temperatures []int            `json:"temperatures"`
+	FirstSeen    time.Time        `json:"first_seen"`
+	LastSeen     time.Time        `json:"last_seen"`
+	InTrending   bool             `json:"in_trending"`
+	InNew        bool             `json:"in_new"`
+	Decision     string           `json:"decision"`
+	Score        int              `json:"score"`
+	WatchlistHit bool             `json:"watchlist_hit"`
+	Reasons      []string         `json:"reasons"`
+	Opinion      *opinionJSON     `json:"opinion"`
+	PriceHistory *product.History `json:"price_history,omitempty"`
 }
 
 func (s *Server) listDeals(w http.ResponseWriter, r *http.Request) {
@@ -144,6 +146,12 @@ func (s *Server) listDeals(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
+	// Price history is information only: without it the deals still list.
+	histories, err := s.priceHistories(r.Context(), listed)
+	if err != nil {
+		s.Log.Error("price history failed", "err", err)
+		histories = nil
+	}
 	out := make([]dealJSON, 0, len(listed))
 	for _, l := range listed {
 		t := temps[l.ID]
@@ -163,7 +171,8 @@ func (s *Server) listDeals(w http.ResponseWriter, r *http.Request) {
 			ImageURL: l.ImageURL, Temperature: l.Temperature, Temperatures: t, FirstSeen: l.FirstSeen,
 			LastSeen: l.LastSeen, InTrending: l.InTrending, InNew: l.InNew, Decision: l.Verdict.Decision,
 			Score: l.Verdict.Score, WatchlistHit: l.Verdict.WatchlistHit, Reasons: reasons,
-			Opinion: op,
+			Opinion:      op,
+			PriceHistory: histories[l.ID],
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"deals": out, "counts": counts})

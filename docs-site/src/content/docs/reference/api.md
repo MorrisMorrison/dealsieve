@@ -30,6 +30,8 @@ Returns up to 200 deals, sorted by score and then by first-seen time. Each deal 
 
 The response also contains `counts` next to `deals`, with the number of deals per view (`passed`, `watchlist`, `blocked`) over the same window, whichever view you listed.
 
+A deal can also carry `price_history` (left out when there is none): `status` (`best` or `above`), `currency`, `diff_cents` (how much more than the lowest; 0 for `best`), `count` (other deals of the same product), `lowest` and `matches` (up to 10, cheapest first; each with `id`, `url`, `title`, `merchant`, `price`, `first_seen`).
+
 ```json
 {
   "deals": [ { "id": "mydealz:123456", "source": "mydealz", "source_label": "mydealz", "title": "...", "reasons": ["..."] } ],

@@ -149,6 +149,12 @@ button { cursor: pointer; }
 .judge-rating { font-weight: 600; }
 .judge-opinion { margin: 0 0 4px; font-size: 13px; }
 .judge-meta { margin: 0; }
+.chip.best { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+.chip.above { background: var(--surface-2); color: var(--muted); }
+.history-line { margin: 4px 0 8px; }
+.history-matches summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.history-matches ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; font-size: 13px; }
+.history-matches a { color: inherit; }
 .chip.block { background: var(--block-soft); color: var(--block); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 
 /* Inbox + detail */
