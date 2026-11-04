@@ -14,8 +14,8 @@ test('historyChip', () => {
 
 test('historyLine', () => {
   assert.equal(historyLine(undefined), '');
-  assert.equal(historyLine(best, 'en-GB'), 'Best price in 180 days · seen once before');
-  assert.equal(historyLine({ ...best, count: 4 }, 'en-GB'), 'Best price in 180 days · seen 4× before');
+  assert.equal(historyLine(best, 'en-GB'), 'Best price in 180 days · 1 other deal');
+  assert.equal(historyLine({ ...best, count: 4 }, 'en-GB'), 'Best price in 180 days · 4 other deals');
   assert.equal(historyLine(above, 'en-GB'), 'Lowest seen: 549€ at Example Air, Aug 2026 · now €40 more');
   assert.equal(historyLine({ ...above, lowest: { ...lowest, merchant: '' } }, 'en-GB'), 'Lowest seen: 549€, Aug 2026 · now €40 more');
 });

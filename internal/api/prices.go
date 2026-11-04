@@ -20,7 +20,7 @@ func (s *Server) priceHistories(ctx context.Context, listed []store.Listed) (map
 			continue
 		}
 		own[l.ID] = product.Candidate{ID: l.ID, URL: l.URL, Title: l.Title, Merchant: l.Merchant,
-			Price: l.Price, Currency: currency, Cents: cents, FirstSeen: l.FirstSeen}
+			Price: l.Price, Currency: currency, Cents: cents, FirstSeen: l.FirstSeen, Info: product.Of(l.Title)}
 		modelsOf[l.ID] = models
 		if !seen[models] {
 			seen[models] = true
@@ -34,7 +34,8 @@ func (s *Server) priceHistories(ctx context.Context, listed []store.Listed) (map
 	candidates := map[string][]product.Candidate{}
 	for _, r := range rows {
 		candidates[r.Models] = append(candidates[r.Models], product.Candidate{ID: r.ID, URL: r.URL, Title: r.Title,
-			Merchant: r.Merchant, Price: r.Price, Currency: r.Currency, Cents: r.Cents, FirstSeen: r.FirstSeen})
+			Merchant: r.Merchant, Price: r.Price, Currency: r.Currency, Cents: r.Cents, FirstSeen: r.FirstSeen,
+			Info: product.Of(r.Title)})
 	}
 	out := map[string]*product.History{}
 	for id, c := range own {

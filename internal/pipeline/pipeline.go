@@ -58,7 +58,8 @@ func (p *Pipeline) Ingest(ctx context.Context, feed source.Feed, deals []source.
 			return fmt.Errorf("store deal %s: %w", d.ID, err)
 		}
 		if err := p.indexProduct(ctx, d); err != nil {
-			return fmt.Errorf("index deal %s: %w", d.ID, err)
+			// Information only; the startup reindex repairs the table.
+			p.Log.Warn("index product failed", "deal", d.ID, "err", err)
 		}
 		res, err := p.decide(ctx, rec, facts, now)
 		if err != nil {

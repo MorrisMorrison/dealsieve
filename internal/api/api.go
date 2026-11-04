@@ -131,10 +131,15 @@ func (s *Server) listDeals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ops, err := s.Store.Opinions(r.Context(), ids)
-	histories, err := s.priceHistories(r.Context(), listed)
 	if err != nil {
 		s.fail(w, err)
 		return
+	}
+	// Price history is information only: without it the deals still list.
+	histories, err := s.priceHistories(r.Context(), listed)
+	if err != nil {
+		s.Log.Error("price history failed", "err", err)
+		histories = nil
 	}
 	out := make([]dealJSON, 0, len(listed))
 	for _, l := range listed {

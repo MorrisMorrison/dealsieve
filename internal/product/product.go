@@ -12,9 +12,10 @@ import (
 // Info is what Same compares, each list sorted and distinct: a title's model
 // codes ("s24", "7800x3d", "iphone15"), sizes ("128gb", "55zoll"),
 // distinguishing words (variants, accessories, condition: "pro", "hülle",
-// "refurbished") and the remaining cleaned words.
+// "refurbished"), the remaining cleaned words and the plain numbers left over
+// ("25" in "FC 25 PS5": a year or an edition number).
 type Info struct {
-	Models, Sizes, Markers, Words []string
+	Models, Sizes, Markers, Words, Numbers []string
 }
 
 // notSizes look like sizes but name a feature (network, resolution).
@@ -30,6 +31,7 @@ var notSizeUnits = map[string]bool{
 // titles are only the same product when they carry the same ones.
 var markers = wordSet(
 	"pro max ultra plus mini lite slim fe se air xl",
+	"bundle edition digital",
 	"hülle case cover coque funda etui panzerglas schutzglas schutzfolie folie displayschutz controller kabel cable adapter ladegerät charger netzteil halterung tasche bag bumper armband strap",
 	"refurbished generalüberholt gebraucht used renewed reconditionné reacondicionado odnowiony ware demo vorführgerät occasion",
 )
@@ -65,6 +67,7 @@ func Of(title string) Info {
 	title = plusAfter.ReplaceAllString(title, "$1 plus")
 	tokens := fingerprint.Tokens(title)
 	models, sizes, joined := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	loose := map[int]bool{} // token indexes of numbers in no size
 	for i := 0; i < len(tokens); i++ {
 		w := tokens[i]
 		switch {
@@ -74,6 +77,8 @@ func Of(title string) Info {
 				sizes[w+tokens[i+1]] = true
 				joined[tokens[i+1]] = true
 				i++
+			} else {
+				loose[i] = true
 			}
 		case fingerprint.IsQuantity(w):
 			num, unit := splitSize(w)
@@ -98,6 +103,7 @@ func Of(title string) Info {
 			}
 			models[w+n] = true
 			consumed[w] = true
+			delete(loose, i+1)
 			i++
 		}
 	}
@@ -111,17 +117,21 @@ func Of(title string) Info {
 			words[w] = true
 		}
 	}
-	return Info{Models: sortedKeys(models), Sizes: sortedKeys(sizes), Markers: sortedKeys(found), Words: sortedKeys(words)}
+	numbers := map[string]bool{}
+	for i := range loose {
+		numbers[tokens[i]] = true
+	}
+	return Info{Models: sortedKeys(models), Sizes: sortedKeys(sizes), Markers: sortedKeys(found), Words: sortedKeys(words), Numbers: sortedKeys(numbers)}
 }
 
 // Same reports whether two titles name the same product: identical non-empty
 // model codes, identical markers, no size unit both name with no value in
-// common, and at least 60% of the smaller set of other words shared.
+// common, no plain numbers when both sides have some and share none, and at least 60% of the smaller set of other words shared.
 func Same(a, b Info) bool {
 	if len(a.Models) == 0 || !slices.Equal(a.Models, b.Models) || !slices.Equal(a.Markers, b.Markers) {
 		return false
 	}
-	if sizesConflict(a.Sizes, b.Sizes) {
+	if sizesConflict(a.Sizes, b.Sizes) || numbersConflict(a.Numbers, b.Numbers) {
 		return false
 	}
 	if len(a.Words) == 0 || len(b.Words) == 0 {
@@ -134,6 +144,20 @@ func Same(a, b Info) bool {
 		}
 	}
 	return shared*5 >= min(len(a.Words), len(b.Words))*3
+}
+
+// numbersConflict is true when both sides have plain numbers and share none
+// ("FC 25" and "FC 26"); a side without numbers conflicts with nothing.
+func numbersConflict(a, b []string) bool {
+	if len(a) == 0 || len(b) == 0 {
+		return false
+	}
+	for _, n := range a {
+		if _, ok := slices.BinarySearch(b, n); ok {
+			return false
+		}
+	}
+	return true
 }
 
 // sizesConflict is true when some unit appears on both sides and the two
