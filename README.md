@@ -94,6 +94,11 @@ Environment variables are for infrastructure and secrets and apply on restart; i
 rejected at startup with a list of problems. Everything else (watchlist, mutes, keywords,
 temperatures, recurrence, notification channels and rules) lives on the Settings page.
 
+**Security.** The page has no login of its own. `DEALSIEVE_NTFY_TOKEN` is sent to the server of every
+ntfy channel (and by Send test), so anyone who can reach the page can point a channel at a server of
+their own and receive it. Keep dealsieve on a private network or behind an authenticating proxy, and use
+an ntfy token scoped to the dealsieve topic.
+
 ## Development
 
 ```bash

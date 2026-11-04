@@ -38,6 +38,10 @@ Access tokens are never entered on the page and never stored in the database. Th
 - `DEALSIEVE_NTFY_TOKEN` for a protected ntfy server.
 - `DEALSIEVE_TELEGRAM_TOKEN` for Telegram.
 
+:::caution
+`DEALSIEVE_NTFY_TOKEN` is sent to the server of every ntfy channel, and by **Send test**. Anyone who can reach the page can point a channel at a server of their own and receive it, so keep the page on a private network or behind an authenticating proxy, and use an ntfy token that is scoped to the dealsieve topic only.
+:::
+
 ## ntfy
 
 A POST to `url/topic` with the deal title, a message (price, temperature, merchant, reason), a click action that opens the deal, the deal's image as attachment and the channel's priority.

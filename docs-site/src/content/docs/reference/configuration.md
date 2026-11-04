@@ -68,7 +68,7 @@ List entries are trimmed, must not be empty and are de-duplicated case-insensiti
 
 ### History and undo
 
-Every save is stored as a version with a summary of what changed (for example `Added watchlist "lego"` or `Minimum temperature 120° → 100°`). A save with no differences is not stored. The History section lists the last 20 versions, and **Undo last change** saves the previous version again as a new one. If another browser tab saved in the meantime, the save fails with a conflict and the page offers to reload.
+Every save is stored as a version with a summary of what changed (for example `Added watchlist entry "lego"`, `Added muted shop "Example Shop" (from a deal)` or `Minimum temperature 120° → 100°`). A save with no differences is not stored. The History section lists the last 20 versions, and **Undo last change** saves the version before the current one again as a new one, so undoing twice re-applies the change you just undid. If another browser tab saved in the meantime, a save or an undo fails with a conflict and the page offers to reload.
 
 ## Environment variables
 

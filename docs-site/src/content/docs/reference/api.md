@@ -46,7 +46,7 @@ Body:
 
 `kind` is one of `hide_deal`, `junk`, `mute_category` or `mute_merchant`. The server derives the value from the deal (the deal ID, its fingerprint, its category or its merchant), so clients cannot inject arbitrary values.
 
-`hide_deal` and `junk` are stored as actions and answer `201` with the action. `mute_category` and `mute_merchant` instead add the deal's category or shop to the settings (a new settings version with the summary `Muted shop "X" (from a deal)`) and answer `201` with `{kind, value, version}`, plus a `warning` if re-checking recent deals failed.
+`hide_deal` and `junk` are stored as actions and answer `201` with the action. `mute_category` and `mute_merchant` instead add the deal's category or shop to the settings (a new settings version with the summary `Added muted shop "X" (from a deal)` or `Added muted category "X" (from a deal)`) and answer `201` with `{kind, value, version}`, plus a `warning` if re-checking recent deals failed.
 
 ## `POST /api/actions/undo`
 
@@ -100,7 +100,14 @@ A save with no differences is not stored as a new version.
 
 ## `POST /api/settings/undo`
 
-Saves the previous version's document as a new version (summary `Undid: <previous summary>`). Returns the same body as a successful `PUT`, or `409` if there is nothing to undo.
+Body `{ "version": 7 }`, the version the client is looking at. Saves the version before it as a new version (summary `Undid: <previous summary>`). Undoing twice therefore re-applies the change you just undid. Returns the same body as a successful `PUT`, including the optional `warning` when re-checking recent deals failed after the undo was saved.
+
+| Status | Meaning |
+|---|---|
+| `200` | Undone. |
+| `400` | The body is not valid JSON. |
+| `409` | `{"error": "..."}`: `version` is not the current one, or there is no earlier version to go back to. |
+| `500` | The undo could not be saved. |
 
 ## `GET /api/settings/history`
 
@@ -117,7 +124,7 @@ Body `{ "channel": { "type": "ntfy", "url": "https://ntfy.example.com", "topic":
 | Response | Meaning |
 |---|---|
 | `200 {"ok": true}` | The message was sent. |
-| `200 {"ok": false, "error": "ntfy: status 404"}` | Sending failed, or a Telegram channel has no token configured. |
+| `200 {"ok": false, "error": "ntfy: status 404"}` | Sending failed (only the status is shown, never the target's answer), or a Telegram channel has no token configured. |
 | `422 {"errors": {...}}` | The channel itself is invalid. |
 
 ## `GET /api/suggestions`
@@ -140,7 +147,7 @@ Body `{ "channel": { "type": "ntfy", "url": "https://ntfy.example.com", "topic":
 
 ## `POST /api/suggestions/apply` and `/dismiss`
 
-Body `{ "kind": "mute_merchant", "value": "Example Shop" }`. `apply` adds the value to the muted list (summary `Muted shop "X" (suggested)`) and recomputes verdicts; `dismiss` records a permanent dismissal. Both return the updated `{"suggestions": [...]}`, with a `warning` if re-checking failed after an apply. An invalid `kind` or an empty `value` returns `400`.
+Body `{ "kind": "mute_merchant", "value": "Example Shop" }`. `apply` adds the value to the muted list (summary `Added muted shop "X" (suggested)`, or `Added muted category "X" (suggested)`) and recomputes verdicts; `dismiss` records a permanent dismissal. Both return the updated `{"suggestions": [...]}`, with a `warning` if re-checking failed after an apply. An invalid `kind` or an empty `value` returns `400`.
 
 ## `GET /api/categories`
 
