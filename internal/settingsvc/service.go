@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/MorrisMorrison/dealsieve/internal/settings"
@@ -51,14 +52,14 @@ type HistoryEntry struct {
 }
 
 // Service serialises all settings changes; the current settings are only
-// read through Current.
+// read through Current, which never waits for a change in progress.
 type Service struct {
 	Store *store.Store
 	Apply Applier
 	Now   func() time.Time
 
-	mu  sync.Mutex
-	cur Snapshot
+	mu  sync.Mutex // serialises writers
+	cur atomic.Pointer[Snapshot]
 }
 
 // Load reads the newest stored settings (saving the defaults on first start)
@@ -77,36 +78,39 @@ func (s *Service) Load(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("stored settings version %d: %w", v.ID, err)
 	}
-	s.cur = Snapshot{Version: v.ID, UpdatedAt: v.CreatedAt, Settings: cur.Normalize()}
-	s.Apply.ApplySettings(s.cur.Settings)
+	snap := Snapshot{Version: v.ID, UpdatedAt: v.CreatedAt, Settings: cur.Normalize()}
+	s.cur.Store(&snap)
+	s.Apply.ApplySettings(snap.Settings)
 	return nil
 }
 
 // Current returns the settings in effect. Treat them as read-only.
 func (s *Service) Current() Snapshot {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.cur
+	if p := s.cur.Load(); p != nil {
+		return *p
+	}
+	return Snapshot{}
 }
 
 func (s *Service) Save(ctx context.Context, version int64, next settings.Settings) (Result, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if version != s.cur.Version {
+	cur := s.Current()
+	if version != cur.Version {
 		return Result{}, ErrConflict
 	}
 	next = next.Normalize()
 	if errs := next.Validate(); len(errs) > 0 {
 		return Result{}, ValidationError(errs)
 	}
-	return s.commit(ctx, next, settings.Summarize(s.cur.Settings, next))
+	return s.commit(ctx, next, settings.Summarize(cur.Settings, next))
 }
 
 // Undo saves the version before the current one as a new version.
 func (s *Service) Undo(ctx context.Context) (Result, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	prev, err := s.Store.SettingsBefore(ctx, s.cur.Version)
+	prev, err := s.Store.SettingsBefore(ctx, s.Current().Version)
 	if errors.Is(err, store.ErrNotFound) {
 		return Result{}, ErrNothingToUndo
 	}
@@ -129,7 +133,7 @@ func (s *Service) Undo(ctx context.Context) (Result, error) {
 func (s *Service) Mute(ctx context.Context, kind, value, note string) (Result, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	next, err := clone(s.cur.Settings)
+	next, err := clone(s.Current().Settings)
 	if err != nil {
 		return Result{}, err
 	}
@@ -142,7 +146,7 @@ func (s *Service) Mute(ctx context.Context, kind, value, note string) (Result, e
 		return Result{}, fmt.Errorf("unknown mute kind %q", kind)
 	}
 	next = next.Normalize()
-	summary := settings.Summarize(s.cur.Settings, next)
+	summary := settings.Summarize(s.Current().Settings, next)
 	for i := range summary {
 		summary[i] += note
 	}
@@ -192,20 +196,21 @@ func (s *Service) Dismiss(ctx context.Context, kind, value string) error {
 // the new version with Changed set and Rechecked zero.
 func (s *Service) commit(ctx context.Context, next settings.Settings, summary []string) (Result, error) {
 	if len(summary) == 0 {
-		return Result{Snapshot: s.cur}, nil
+		return Result{Snapshot: s.Current()}, nil
 	}
 	v, err := s.write(ctx, next, summary)
 	if err != nil {
 		return Result{}, err
 	}
-	s.cur = Snapshot{Version: v.ID, UpdatedAt: v.CreatedAt, Settings: next}
+	snap := Snapshot{Version: v.ID, UpdatedAt: v.CreatedAt, Settings: next}
+	s.cur.Store(&snap)
 	s.Apply.ApplySettings(next)
 	// The change is saved; finish re-checking even if the client goes away.
 	n, err := s.Apply.RecomputeRecent(context.WithoutCancel(ctx))
 	if err != nil {
-		return Result{Snapshot: s.cur, Changed: true}, fmt.Errorf("re-check deals: %w", err)
+		return Result{Snapshot: snap, Changed: true}, fmt.Errorf("re-check deals: %w", err)
 	}
-	return Result{Snapshot: s.cur, Rechecked: n, Changed: true}, nil
+	return Result{Snapshot: snap, Rechecked: n, Changed: true}, nil
 }
 
 func (s *Service) write(ctx context.Context, next settings.Settings, summary []string) (store.SettingsVersion, error) {

@@ -188,3 +188,42 @@ func TestRecomputeErrorKeepsSavedChange(t *testing.T) {
 		t.Errorf("history = %+v, %v", hist, err)
 	}
 }
+
+type blockingApplier struct {
+	fakeApplier
+	entered, release chan struct{}
+}
+
+func (b *blockingApplier) RecomputeRecent(context.Context) (int, error) {
+	close(b.entered)
+	<-b.release
+	return 0, nil
+}
+
+// A slow re-check must not hold up readers such as the settings page's GET.
+func TestCurrentDoesNotWaitForASave(t *testing.T) {
+	svc, _, _, _ := newService(t)
+	ba := &blockingApplier{entered: make(chan struct{}), release: make(chan struct{})}
+	svc.Apply = ba
+	next := svc.Current().Settings
+	next.Rules.MinTemperature = 80
+	version := svc.Current().Version
+	saved := make(chan error, 1)
+	go func() { _, err := svc.Save(ctx, version, next); saved <- err }()
+	<-ba.entered
+
+	got := make(chan Snapshot, 1)
+	go func() { got <- svc.Current() }()
+	select {
+	case snap := <-got:
+		if snap.Settings.Rules.MinTemperature != 80 {
+			t.Errorf("current = %+v, want the new settings", snap)
+		}
+	case <-time.After(2 * time.Second):
+		t.Error("Current blocked behind a running Save")
+	}
+	close(ba.release)
+	if err := <-saved; err != nil {
+		t.Fatal(err)
+	}
+}
