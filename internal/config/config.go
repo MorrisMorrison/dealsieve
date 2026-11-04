@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ type Env struct {
 	LogFormat     string
 	TelegramToken string
 	NtfyToken     string
+	NtfyTokenHost string // host[:port] the ntfy token may be sent to; empty = any ntfy server
 	PublicURL     string
 	JudgeURL      string
 	JudgeAPIKey   string
@@ -76,6 +78,13 @@ func FromEnv(getenv func(string) string) (Env, error) {
 		}
 		e.SourceURLs[s.Name] = strings.TrimRight(v, "/")
 	}
+	if v := strings.ToLower(strings.TrimSpace(getenv("DEALSIEVE_NTFY_TOKEN_HOST"))); v != "" {
+		if !validTokenHost(v) {
+			errs = append(errs, fmt.Errorf("DEALSIEVE_NTFY_TOKEN_HOST: must be a host or host:port without scheme or path, got %q", v))
+		} else {
+			e.NtfyTokenHost = v
+		}
+	}
 	if v := getenv("DEALSIEVE_PUBLIC_URL"); v != "" {
 		u, err := url.Parse(v)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
@@ -94,4 +103,21 @@ func FromEnv(getenv func(string) string) (Env, error) {
 		errs = append(errs, fmt.Errorf("DEALSIEVE_LOG_FORMAT: must be text or json, got %q", e.LogFormat))
 	}
 	return e, errors.Join(errs...)
+}
+
+// validTokenHost accepts "host" or "host:port" and nothing else: no scheme,
+// path, query, user info or spaces.
+func validTokenHost(v string) bool {
+	if strings.ContainsAny(v, "/?#@ 	\\") {
+		return false
+	}
+	u, err := url.Parse("http://" + v)
+	if err != nil || u.Host != v || u.Hostname() == "" {
+		return false
+	}
+	if p := u.Port(); p != "" || strings.HasSuffix(v, ":") {
+		n, err := strconv.Atoi(p)
+		return err == nil && n > 0 && n < 65536
+	}
+	return true
 }

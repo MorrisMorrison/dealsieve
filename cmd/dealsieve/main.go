@@ -52,6 +52,9 @@ func run(ctx context.Context) error {
 		return err
 	}
 	log := newLogger(env.LogFormat)
+	if env.NtfyToken != "" && env.NtfyTokenHost == "" {
+		log.Warn("DEALSIEVE_NTFY_TOKEN is sent to every ntfy server; set DEALSIEVE_NTFY_TOKEN_HOST to limit it")
+	}
 	if os.Getenv("DEALSIEVE_CONFIG") != "" {
 		log.Warn("DEALSIEVE_CONFIG is no longer read; configure dealsieve on the Settings page")
 	}

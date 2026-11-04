@@ -119,3 +119,17 @@ func TestSourceURLs(t *testing.T) {
 		t.Errorf("bad URL error = %v", err)
 	}
 }
+
+func TestNtfyTokenHost(t *testing.T) {
+	for in, want := range map[string]string{"": "", "ntfy.example.com": "ntfy.example.com", " Ntfy.Example.com:8080 ": "ntfy.example.com:8080"} {
+		e, err := FromEnv(env(map[string]string{"DEALSIEVE_NTFY_TOKEN_HOST": in}))
+		if err != nil || e.NtfyTokenHost != want {
+			t.Errorf("%q: host %q, err %v, want %q", in, e.NtfyTokenHost, err, want)
+		}
+	}
+	for _, in := range []string{"https://ntfy.example.com", "ntfy.example.com/path", "ntfy.example.com:abc", "a b", "ntfy.example.com:"} {
+		if _, err := FromEnv(env(map[string]string{"DEALSIEVE_NTFY_TOKEN_HOST": in})); err == nil || !strings.Contains(err.Error(), "DEALSIEVE_NTFY_TOKEN_HOST") {
+			t.Errorf("%q: err = %v", in, err)
+		}
+	}
+}

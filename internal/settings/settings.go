@@ -385,16 +385,48 @@ func ValidateChannel(name string, ch Channel) map[string]string {
 	return errs
 }
 
-// Warnings lists channels that are valid but can't send, keyed by channel
-// name: a Telegram channel needs the bot token from the environment.
-func Warnings(s Settings, telegramToken bool) map[string]string {
-	w := map[string]string{}
-	if telegramToken {
-		return w
+// NtfyBinding says whether the server has an ntfy token and which host
+// (host or host:port, lower case) it may be sent to; empty means any.
+type NtfyBinding struct {
+	TokenSet bool
+	Host     string
+}
+
+// Sends reports whether the ntfy token is attached to requests for a
+// channel URL. The host matches case-insensitively, and the port only if
+// Host names one.
+func (b NtfyBinding) Sends(channelURL string) bool {
+	if !b.TokenSet {
+		return false
 	}
+	if b.Host == "" {
+		return true
+	}
+	u, err := url.Parse(channelURL)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(u.Host)
+	if !strings.Contains(b.Host, ":") {
+		host = strings.ToLower(u.Hostname())
+	}
+	return host == strings.ToLower(b.Host)
+}
+
+// Warnings lists channels that are valid but can't send or send with a
+// caveat, keyed by channel name: a Telegram channel needs the bot token
+// from the environment, and the ntfy token is either sent to every ntfy
+// server or not to this one.
+func Warnings(s Settings, telegramToken bool, ntfy NtfyBinding) map[string]string {
+	w := map[string]string{}
 	for name, ch := range s.Channels {
-		if ch.Type == "telegram" {
+		switch {
+		case ch.Type == "telegram" && !telegramToken:
 			w[name] = "DEALSIEVE_TELEGRAM_TOKEN isn't set on the server, so this channel can't send."
+		case ch.Type == "ntfy" && ntfy.TokenSet && ntfy.Host == "":
+			w[name] = "DEALSIEVE_NTFY_TOKEN is sent to every ntfy server; set DEALSIEVE_NTFY_TOKEN_HOST to limit it."
+		case ch.Type == "ntfy" && ntfy.TokenSet && !ntfy.Sends(ch.URL):
+			w[name] = "DEALSIEVE_NTFY_TOKEN_HOST is set to another server, so the ntfy token isn't sent to this server."
 		}
 	}
 	return w

@@ -24,7 +24,7 @@ func (s *Server) settingsBody(snap settingsvc.Snapshot) map[string]any {
 		"version":    snap.Version,
 		"updated_at": snap.UpdatedAt,
 		"settings":   snap.Settings,
-		"warnings":   settings.Warnings(snap.Settings, s.Env.TelegramToken != ""),
+		"warnings":   settings.Warnings(snap.Settings, s.Env.TelegramToken != "", notify.Binding(s.Env)),
 		"judge_env":  map[string]any{"url": s.Env.JudgeURL, "key_set": s.Env.JudgeAPIKey != ""},
 		"sites":      siteList(),
 	}
@@ -138,7 +138,8 @@ func (s *Server) testChannel(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"errors": errs})
 		return
 	}
-	if warn := settings.Warnings(settings.Settings{Channels: map[string]settings.Channel{"test": ch}}, s.Env.TelegramToken != ""); warn["test"] != "" {
+	// Only blocking problems stop a test; the ntfy token binding just decides whether the token is attached.
+	if warn := settings.Warnings(settings.Settings{Channels: map[string]settings.Channel{"test": ch}}, s.Env.TelegramToken != "", settings.NtfyBinding{}); warn["test"] != "" {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": warn["test"]})
 		return
 	}

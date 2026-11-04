@@ -36,10 +36,13 @@ Each channel card has a **Send test** button. It sends a "dealsieve test notific
 Access tokens are never entered on the page and never stored in the database. They come from environment variables:
 
 - `DEALSIEVE_NTFY_TOKEN` for a protected ntfy server.
+- `DEALSIEVE_NTFY_TOKEN_HOST` to bind that token to one ntfy server, for example `ntfy.example.com` or `ntfy.example.com:8443` (no scheme or path).
 - `DEALSIEVE_TELEGRAM_TOKEN` for Telegram.
 
 :::caution
-`DEALSIEVE_NTFY_TOKEN` is sent to the server of every ntfy channel, and by **Send test**. Anyone who can reach the page can point a channel at a server of their own and receive it, so keep the page on a private network or behind an authenticating proxy, and use an ntfy token that is scoped to the dealsieve topic only.
+Set `DEALSIEVE_NTFY_TOKEN_HOST` whenever you use `DEALSIEVE_NTFY_TOKEN`. The token is then attached only to ntfy channels whose server host matches (case-insensitive, and the port too if you give one), including by **Send test** and the digest. Any other ntfy server gets no token, and the page shows a warning on such a channel.
+
+Without `DEALSIEVE_NTFY_TOKEN_HOST` the token is sent to the server of every ntfy channel, and by **Send test**, so anyone who can reach the page can point a channel at a server of their own and receive it. dealsieve logs a warning at startup and shows one on each ntfy channel. Either way, keep the page on a private network or behind an authenticating proxy, and use an ntfy token that is scoped to the dealsieve topic only.
 :::
 
 ## ntfy

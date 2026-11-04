@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -207,5 +208,35 @@ func TestNtfyIgnoresHTML(t *testing.T) {
 	}
 	if got["message"] != "plain body" {
 		t.Errorf("ntfy got %v", got)
+	}
+}
+
+func TestNtfyTokenBoundToHost(t *testing.T) {
+	var auth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth = r.Header.Get("Authorization")
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	ch := settings.Channel{Type: "ntfy", URL: srv.URL, Topic: "t"}
+	for name, c := range map[string]struct {
+		host string
+		want string
+	}{
+		"unset sends to any server": {"", "Bearer nt"},
+		"matching host:port":        {u.Host, "Bearer nt"},
+		"matching ignores case":     {strings.ToUpper(u.Host), "Bearer nt"},
+		"matching bare host":        {u.Hostname(), "Bearer nt"},
+		"other host":                {"ntfy.example.com", ""},
+		"same host, other port":     {u.Hostname() + ":1", ""},
+	} {
+		auth = "unset"
+		env := config.Env{NtfyToken: "nt", NtfyTokenHost: c.host}
+		if err := ForChannel(ch, env, srv.Client()).Send(ctx, Message{Title: "t"}); err != nil {
+			t.Fatal(name, err)
+		}
+		if auth != c.want {
+			t.Errorf("%s: Authorization = %q, want %q", name, auth, c.want)
+		}
 	}
 }

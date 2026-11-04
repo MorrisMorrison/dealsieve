@@ -83,12 +83,21 @@ func FromSettings(channels map[string]settings.Channel, env config.Env, hc *http
 	return out
 }
 
+// Binding is the ntfy token binding the environment configures.
+func Binding(env config.Env) settings.NtfyBinding {
+	return settings.NtfyBinding{TokenSet: env.NtfyToken != "", Host: env.NtfyTokenHost}
+}
+
 // ForChannel builds the notifier for one channel, e.g. to send a test
 // message from unsaved form values. It returns nil for an unknown type.
 func ForChannel(ch settings.Channel, env config.Env, hc *http.Client) Notifier {
 	switch ch.Type {
 	case "ntfy":
-		return &Ntfy{BaseURL: ch.URL, Topic: ch.Topic, Priority: ch.Priority, Token: env.NtfyToken, HTTP: hc}
+		token := ""
+		if Binding(env).Sends(ch.URL) {
+			token = env.NtfyToken
+		}
+		return &Ntfy{BaseURL: ch.URL, Topic: ch.Topic, Priority: ch.Priority, Token: token, HTTP: hc}
 	case "telegram":
 		return &Telegram{APIBase: "https://api.telegram.org", Token: env.TelegramToken, ChatID: ch.ChatID, HTTP: hc}
 	}
