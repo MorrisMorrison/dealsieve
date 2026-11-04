@@ -47,6 +47,9 @@ func run(ctx context.Context) error {
 		return err
 	}
 	log := newLogger(env.LogFormat)
+	if os.Getenv("DEALSIEVE_CONFIG") != "" {
+		log.Warn("DEALSIEVE_CONFIG is no longer read; configure dealsieve on the Settings page")
+	}
 
 	if err := os.MkdirAll(env.DataDir, 0o755); err != nil {
 		return fmt.Errorf("create data dir: %w", err)
@@ -57,8 +60,11 @@ func run(ctx context.Context) error {
 	}
 	defer st.Close()
 
-	httpc := &http.Client{Timeout: 30 * time.Second}
-	pipe := &pipeline.Pipeline{Store: st, Env: env, HTTP: httpc, Now: time.Now, Log: log}
+	// Notifiers get a shorter timeout: the Settings page's test send waits
+	// for one, and a slow target shouldn't hold a poll up for long.
+	feedClient := &http.Client{Timeout: 30 * time.Second}
+	notifyClient := &http.Client{Timeout: 10 * time.Second}
+	pipe := &pipeline.Pipeline{Store: st, Env: env, HTTP: notifyClient, Now: time.Now, Log: log}
 	svc := &settingsvc.Service{Store: st, Apply: pipe, Now: time.Now}
 	if err := svc.Load(ctx); err != nil {
 		return fmt.Errorf("load settings: %w", err)
@@ -75,7 +81,7 @@ func run(ctx context.Context) error {
 	src := &mydealz.Client{
 		BaseURL:   env.MydealzURL,
 		UserAgent: "dealsieve/" + version.Version + " (+" + repoURL + ")",
-		HTTP:      httpc,
+		HTTP:      feedClient,
 		Log:       log,
 	}
 	pl := poller.New(src, pipe, map[source.Feed]time.Duration{
@@ -91,7 +97,7 @@ func run(ctx context.Context) error {
 		Addr: env.Listen,
 		Handler: (&api.Server{
 			Store: st, Recompute: pipe, Status: pl.Status,
-			Settings: svc, Env: env, HTTP: httpc,
+			Settings: svc, Env: env, HTTP: notifyClient,
 			Assets: web.Assets, Log: log, Now: time.Now,
 		}).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
