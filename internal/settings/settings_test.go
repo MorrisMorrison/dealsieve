@@ -2,6 +2,7 @@ package settings
 
 import (
 	"encoding/json"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -222,5 +223,72 @@ func TestNormalizeDigest(t *testing.T) {
 	n := s.Normalize().Digest
 	if n.Time != "18:00" || n.Timezone != "Europe/Berlin" || !slices.Equal(n.Channels, []string{"phone"}) {
 		t.Errorf("normalized = %+v", n)
+	}
+}
+
+func TestSourcesDefaultsAndOldDocuments(t *testing.T) {
+	d := Defaults()
+	if got := d.EnabledSources(); !slices.Equal(got, []string{"mydealz"}) {
+		t.Errorf("default enabled = %v", got)
+	}
+	if len(d.Sources) != len(SourceNames) {
+		t.Errorf("defaults list %d sources, want %d", len(d.Sources), len(SourceNames))
+	}
+	// A document saved before sources existed.
+	old, err := Decode([]byte(`{"watchlist": ["tv"]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := old.EnabledSources(); !slices.Equal(got, []string{"mydealz"}) {
+		t.Errorf("old document enabled = %v", got)
+	}
+	// A stored "off" must not be merged back to the default "on".
+	off, err := Decode([]byte(`{"sources": {"mydealz": {"enabled": false}, "dealabs": {"enabled": true, "min_temperature": 80}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := off.EnabledSources(); !slices.Equal(got, []string{"dealabs"}) {
+		t.Errorf("enabled = %v, want [dealabs]", got)
+	}
+	if got := off.SourceMinimums(); !maps.Equal(got, map[string]int{"dealabs": 80}) {
+		t.Errorf("minimums = %v", got)
+	}
+}
+
+func TestSourcesValidation(t *testing.T) {
+	neg := -1
+	cases := []struct {
+		name    string
+		sources map[string]Source
+		key     string
+	}{
+		{"unknown", map[string]Source{"mydealz": {Enabled: true}, "Example": {Enabled: true}}, "sources.example"},
+		{"none on", map[string]Source{"mydealz": {}}, "sources"},
+		{"negative", map[string]Source{"mydealz": {Enabled: true, MinTemperature: &neg}}, "sources.mydealz.min_temperature"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := Defaults()
+			s.Sources = c.sources
+			errs := s.Normalize().Validate()
+			if _, ok := errs[c.key]; !ok {
+				t.Errorf("errors %v, want key %q", errs, c.key)
+			}
+		})
+	}
+}
+
+func TestNormalizeFillsSources(t *testing.T) {
+	s := Defaults()
+	s.Sources = map[string]Source{" HotUKDeals ": {Enabled: true}}
+	n := s.Normalize()
+	if len(n.Sources) != len(SourceNames) || !n.Sources["hotukdeals"].Enabled || n.Sources["mydealz"].Enabled {
+		t.Errorf("normalized sources = %+v", n.Sources)
+	}
+}
+
+func TestSourceLabel(t *testing.T) {
+	if SourceLabel("pepperpl") != "pepper.pl" || SourceLabel("dealabs") != "dealabs" {
+		t.Error("labels")
 	}
 }
