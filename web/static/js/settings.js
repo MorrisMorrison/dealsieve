@@ -523,6 +523,14 @@ async function onDismiss(s, applyBtn, dismissBtn) {
   }
 }
 
+function showStale() {
+  st.stale = true;
+  banner('Someone else saved the settings. Reload to see them (your unsaved changes will be lost).', 'Reload', () => {
+    st.draft = clone(st.saved); // so the unload warning doesn't fire
+    location.reload();
+  });
+}
+
 async function onUndo() {
   if (changeCount(st.saved, st.draft) > 0 && !confirm('Undoing discards your unsaved changes. Continue?')) return;
   try {
@@ -531,7 +539,11 @@ async function onUndo() {
     renderAll();
     toast('Undone');
   } catch (err) {
-    toast(err.message || 'Nothing to undo', { error: true });
+    if (err.status === 409 && err.message !== 'there is no earlier version to go back to') {
+      showStale();
+    } else {
+      toast(err.message || 'Nothing to undo', { error: true });
+    }
   }
 }
 
@@ -569,11 +581,7 @@ async function onSave() {
       $('.field-error')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       toast('Some settings need fixing', { error: true });
     } else if (err.status === 409) {
-      st.stale = true;
-      banner('Someone else saved the settings. Reload to see them (your unsaved changes will be lost).', 'Reload', () => {
-        st.draft = clone(st.saved); // so the unload warning doesn't fire
-        location.reload();
-      });
+      showStale();
     } else {
       banner(`Couldn't save: ${err.message}`);
     }
