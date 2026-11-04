@@ -46,9 +46,7 @@ var sizeUnits = map[string]bool{
 // CleanTitle lowercases a title and drops plain numbers, sizes like "16gb",
 // punctuation, one-letter words and stopwords. Model codes like "s24" stay.
 func CleanTitle(title string) string {
-	fields := strings.FieldsFunc(strings.ToLower(title), func(r rune) bool {
-		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
-	})
+	fields := Tokens(title)
 	words := fields[:0]
 	for _, w := range fields {
 		if len([]rune(w)) < 2 || stopwords[w] || isQuantity(w) {
@@ -58,6 +56,20 @@ func CleanTitle(title string) string {
 	}
 	return strings.Join(words, " ")
 }
+
+// Tokens splits a title into its lowercased runs of letters and digits, the
+// words CleanTitle starts from.
+func Tokens(title string) []string {
+	return strings.FieldsFunc(strings.ToLower(title), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+}
+
+// IsQuantity reports whether CleanTitle drops w as a number or size.
+func IsQuantity(w string) bool { return isQuantity(w) }
+
+// IsUnit reports whether w can follow a number as its unit ("gb", "zoll").
+func IsUnit(w string) bool { return units[w] || sizeUnits[w] }
 
 // Key is the merchant plus the cleaned title's distinct words in sorted order.
 func Key(merchant, cleanTitle string) string {
