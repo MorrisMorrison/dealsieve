@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io/fs"
 	"log/slog"
+	"mime"
 	"net/http"
 	"slices"
 	"strconv"
@@ -47,6 +48,11 @@ type Server struct {
 	Assets    fs.FS
 	Log       *slog.Logger
 	Now       func() time.Time
+}
+
+func init() {
+	// Not every OS mime table knows .webmanifest; browsers want this exact type for installability.
+	mime.AddExtensionType(".webmanifest", "application/manifest+json")
 }
 
 func (s *Server) Handler() http.Handler {

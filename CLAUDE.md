@@ -25,7 +25,7 @@ dealsieve is a small self-hosted filter for deal feeds. One Go binary polls a so
 | `internal/api/` | `net/http` mux: JSON API (`/api/deals`, `/api/actions`, `/api/settings*` (incl. `POST /api/settings/judge/test`), `/api/suggestions*`, `/api/categories`, `/api/status`), `/health`, the embedded pages |
 | `internal/judge/` | LLM judge: OpenAI-compatible client, prompt/reply parsing, the background `Runner` |
 | `internal/version/` | `Version`, stamped with `-ldflags -X` from the `VERSION` build arg |
-| `web/` | The pages: `index.html` (inbox), `settings.html` (Settings), `static/css`, `static/js` (vanilla ES modules, no build step), embedded by `embed.go` |
+| `web/` | The pages: `index.html` (inbox), `settings.html` (Settings), `static/css`, `static/js` (vanilla ES modules, no build step), embedded by `embed.go`; `static/manifest.webmanifest` + `static/icons/*.png` make it an installable home-screen app (icons derived from `favicon.svg`; the manifest's content type is registered in `internal/api`) |
 | `docs-site/` | The docs website (Astro + Starlight): hand-written Markdown pages in `src/content/docs/`, published to GitHub Pages |
 | `screenshots/` | README screenshot tool (Node + Playwright, its own `package.json`): made-up demo `settings.json` (applied through `PUT /api/settings`) + RSS `feeds/`, `capture.mjs` runs the built binary against a fake feed server and writes `docs/screenshots/` (git-ignored). The `screenshots.yml` workflow publishes them to the `screenshots` branch |
 | `test/e2e/` | End-to-end test: builds the real binary and runs it against fake feed and ntfy servers |
