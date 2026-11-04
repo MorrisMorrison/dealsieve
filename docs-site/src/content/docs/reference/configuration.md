@@ -25,7 +25,7 @@ Saving validates the whole page at once and reports every problem under its fiel
 | Setting | Default | Validation |
 |---|---|---|
 | Source on/off | mydealz on, the others off | One switch each for mydealz, hotukdeals, dealabs, preisjaeger, chollometro and pepper.pl. At least one must be on. |
-| Minimum temperature (per source) | none | Optional whole number, may be negative. Used instead of the global minimum for deals from that source. |
+| Minimum temperature (per source) | none | Optional whole number, 0 or more; empty means the global minimum. Used instead of the global minimum for deals from that source. |
 
 Turning a source on starts polling its feeds right away; turning it off stops polling it and hides its deals (they are kept until the 180-day prune, so turning it on again brings them back). The minimum temperature applies in this order: the category's own minimum, then the source's minimum, then the global minimum. Reasons name the source's minimum, for example `too cold: 80° < 150° (hotukdeals minimum)` or `hot: 210° (hotukdeals minimum 150°)`.
 

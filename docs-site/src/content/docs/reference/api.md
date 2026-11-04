@@ -20,7 +20,7 @@ The web page talks to the backend only through this JSON API. Errors are returne
 | `POST /api/suggestions/apply` | Accept a suggestion. |
 | `POST /api/suggestions/dismiss` | Dismiss a suggestion for good. |
 | `GET /api/categories` | Categories seen in stored deals. |
-| `GET /api/status` | Per source and feed: last successful poll and last error, plus the enabled `sources`. |
+| `GET /api/status` | One row per source and feed (`source`, `label`, `feed`, last successful poll, last error), plus `sources`: the enabled sources as `{name, label}`. |
 | `GET /health` | Liveness for monitors. |
 
 ## `GET /api/deals`
@@ -80,11 +80,18 @@ Removes the action with that ID and recomputes verdicts. Answers `204`, or `404`
     "notify": [ { "when": "watchlist", "channels": ["phone", "tg"] } ],
     "suggestions": { "min_count": 3, "window_days": 30 }
   },
-  "warnings": { "tg": "DEALSIEVE_TELEGRAM_TOKEN isn't set on the server, so this channel can't send." }
+  "warnings": { "tg": "DEALSIEVE_TELEGRAM_TOKEN isn't set on the server, so this channel can't send." },
+  "sites": [
+    { "name": "mydealz", "label": "mydealz", "domain": "mydealz.de" },
+    { "name": "hotukdeals", "label": "hotukdeals", "domain": "hotukdeals.com" },
+    { "name": "pepperpl", "label": "pepper.pl", "domain": "pepper.pl" }
+  ]
 }
 ```
 
 `warnings` maps channel names to messages and is empty when there is nothing to warn about. Secrets never appear in the settings.
+
+`sites` lists every source dealsieve knows (all six, in display order; shortened above) with its display label and domain. It is read-only context for the Settings page and isn't part of the settings document. A source without `min_temperature` uses the global minimum.
 
 ## `PUT /api/settings`
 
